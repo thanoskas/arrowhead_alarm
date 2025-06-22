@@ -29,7 +29,9 @@ This integration provides complete Home Assistant support for Arrowhead Alarm Pa
 🔹 ECi Series
 <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/eci_panel.jpg" alt="ECi Series Panel" width="300">
 Up to 248 zones • 32 outputs • Dynamic zone detection
-🔹 ESX Elite-SX Series
+
+  
+  🔹 ESX Elite-SX Series
 <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/esx_panel.jpg" alt="ESX Elite-SX Panel" width="300">
 Up to 32 zones • 16 outputs • RF supervision support
 </div>
