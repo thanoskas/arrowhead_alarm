@@ -1,27 +1,31 @@
-# Arrowhead Alarm Panel Integration for Home Assistant
-
+Arrowhead Alarm Panel Integration for Home Assistant
 <div align="center">
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/arrowhead_logo.png" alt="Arrowhead Alarm Products" width="200">
 </div>
-
 <div align="center">
-
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
 [![License][license-shield]][license]
 [![HACS][hacs-shield]][hacs]
 [![Community Forum][forum-shield]][forum]
+</div>
+Advanced Home Assistant integration for Arrowhead Alarm Panel systems with comprehensive zone detection and panel-specific optimizations.
 
+<div align="center">
+  <p><em>Integration implemented by <a href="https://smarthomehellas.gr">smarthomehellas.gr</a> supported by <a href="https://iascom.gr">iascom.gr</a></em></p>
+  <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/iascom_logo.png" alt="Iascom" width="120">
 </div>
 
-**Advanced Home Assistant integration for Arrowhead Alarm Panel systems with comprehensive zone detection and panel-specific optimizations.**
-
-## Overview
-
+Overview
 This integration provides complete Home Assistant support for Arrowhead Alarm Panel systems, including:
-
-- **🔹 ESX Elite-SX**: Up to 32 zones, 16 outputs, RF supervision support
-- **🔹 ECi Series**: Up to 248 zones, 32 outputs, dynamic zone detection
+<div align="center">
+🔹 ECi Series
+<img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/eci_panel.jpg" alt="ECi Series Panel" width="300">
+Up to 248 zones • 32 outputs • Dynamic zone detection
+🔹 ESX Elite-SX Series
+<img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/esx_panel.jpg" alt="ESX Elite-SX Panel" width="300">
+Up to 32 zones • 16 outputs • RF supervision support
+</div>
 
 ## Key Features
 
