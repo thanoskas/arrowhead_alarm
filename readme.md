@@ -16,7 +16,7 @@ Advanced Home Assistant integration for Arrowhead Alarm Panel systems with compr
 
 
 <div align="center">
-  <p><strong>Integration implemented by <a href="https://smarthomehellas.gr">smarthomehellas.gr</a> supported by <a href="https://iascom.gr">iascom.gr</a></strong></p>
+  <p><strong>Integration implemented by <a href="https://smarthomehellas.gr">smarthomehellas.gr</a> supported by <a href="https://iascom.gr">iascom.gr - Official Greek Arrowhead Distributor fr</a></strong></p>
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/smarthomehellas_logo.png" alt="Smart Home Hellas" width="120">
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/iascom_logo.png" alt="Iascom" width="120">
 </div>
