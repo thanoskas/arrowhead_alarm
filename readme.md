@@ -447,7 +447,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ☕ Support My Work
 If you find this project helpful and want to support my work, feel free to donate via PayPal:
 
-https://paypal.me/amaziotis
+https://paypal.me/thanoskasolas
 
 [releases-shield]: https://img.shields.io/github/release/thanoskas/arrowhead_alarm.svg?style=for-the-badge
 [releases]: https://github.com/thanoskas/arrowhead_alarm/releases
