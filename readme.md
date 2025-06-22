@@ -9,6 +9,8 @@ Arrowhead Alarm Panel Integration for Home Assistant
 [![HACS][hacs-shield]][hacs]
 [![Community Forum][forum-shield]][forum]
 </div>
+
+
 Advanced Home Assistant integration for Arrowhead Alarm Panel systems with comprehensive zone detection and panel-specific optimizations.
 
 
@@ -18,6 +20,7 @@ Advanced Home Assistant integration for Arrowhead Alarm Panel systems with compr
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/smarthomehellas_logo.png" alt="Smart Home Hellas" width="120">
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/iascom_logo.png" alt="Iascom" width="120">
 </div>
+
 
 Overview
 
