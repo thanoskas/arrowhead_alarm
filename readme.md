@@ -444,6 +444,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **⭐ If this integration helps you secure your home, please consider starring the repository!**
 
+☕ Support My Work
+If you find this project helpful and want to support my work, feel free to donate via PayPal:
+
+https://paypal.me/amaziotis
+
 [releases-shield]: https://img.shields.io/github/release/thanoskas/arrowhead_alarm.svg?style=for-the-badge
 [releases]: https://github.com/thanoskas/arrowhead_alarm/releases
 [commits-shield]: https://img.shields.io/github/commit-activity/y/thanoskas/arrowhead_alarm.svg?style=for-the-badge
