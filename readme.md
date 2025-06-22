@@ -1,13 +1,20 @@
 # Arrowhead Alarm Panel Integration for Home Assistant
 
+<div align="center">
+  <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/arrowhead_logo.png" alt="Arrowhead Alarm Products" width="200">
+</div>
+
+<div align="center">
+
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
-[![License][license-shield]](LICENSE)
-[![hacs][hacsbadge]][hacs]
+[![License][license-shield]][license]
+[![HACS][hacs-shield]][hacs]
+[![Community Forum][forum-shield]][forum]
+
+</div>
 
 **Advanced Home Assistant integration for Arrowhead Alarm Panel systems with comprehensive zone detection and panel-specific optimizations.**
-
-![Arrowhead Alarm Panel](https://img.shields.io/badge/Arrowhead-Alarm%20Panel-blue)
 
 ## Overview
 
@@ -19,6 +26,7 @@ This integration provides complete Home Assistant support for Arrowhead Alarm Pa
 ## Key Features
 
 ### 🏠 Comprehensive Device Support
+
 - **Alarm Control Panel** - Arm/disarm with away and stay modes
 - **Zone Monitoring** - Individual sensors for zone state, alarms, troubles, and bypass status
 - **System Status** - AC power, battery, phone line, and RF supervision monitoring
@@ -26,12 +34,14 @@ This integration provides complete Home Assistant support for Arrowhead Alarm Pa
 - **Zone Bypass** - Individual bypass buttons and bulk bypass services
 
 ### 🔧 Advanced Configuration
+
 - **Auto-Detection** - Automatic discovery of zones and areas (ECi panels)
 - **Panel-Specific Optimization** - Tailored communication protocols for each panel type
 - **Manual Configuration** - Override detection with custom zone counts and names
 - **Version Detection** - Automatic protocol adaptation based on firmware version
 
 ### 🛡️ Robust Operation
+
 - **Connection Management** - Automatic reconnection with exponential backoff
 - **Error Recovery** - Comprehensive error handling and status reporting
 - **Performance Optimization** - Panel-specific timing and protocol selection
@@ -65,12 +75,14 @@ This integration provides complete Home Assistant support for Arrowhead Alarm Pa
 ### Manual Installation
 
 1. **Download Files**:
+
    ```bash
    wget https://github.com/thanoskas/arrowhead_alarm/archive/main.zip
    unzip main.zip
    ```
 
 2. **Copy Integration**:
+
    ```bash
    cp -r arrowhead_alarm-main/custom_components/arrowhead_alarm /config/custom_components/
    ```
@@ -102,25 +114,30 @@ The integration uses a **guided configuration wizard** that automatically detect
 | **Max Outputs** | Number of outputs to control | 4 | No |
 
 #### User PIN Format
+
 The User PIN should be formatted as: `[User Number] [PIN Code]`
+
 - Example: `"1 123"` for User 1 with PIN 123
 - Example: `"2 456"` for User 2 with PIN 456
 
 ### Panel-Specific Configuration
 
 #### ESX Elite-SX
+
 - **Zones**: 1-32 (fixed configuration)
 - **Outputs**: 1-16 with expander support
 - **Features**: RF supervision, dual areas, tamper detection
 
 #### ECi Series
+
 - **Zones**: 1-248 with auto-detection
-- **Outputs**: 1-32 with expander support  
+- **Outputs**: 1-32 with expander support
 - **Features**: Multiple areas, zone expanders, advanced detection
 
 ## Entities Created
 
 ### Alarm Control Panel
+
 - **Arrowhead [Panel Type]** - Main alarm panel entity
   - States: Disarmed, Armed Away, Armed Home, Pending, Triggered
   - Attributes: Zone status, system health, detection info
@@ -128,13 +145,15 @@ The User PIN should be formatted as: `[User Number] [PIN Code]`
 ### Binary Sensors
 
 #### Zone Sensors (per configured zone)
+
 - **Zone [XXX]** - Zone open/closed state
 - **Zone [XXX] Alarm** - Zone alarm condition
-- **Zone [XXX] Trouble** - Zone trouble condition  
+- **Zone [XXX] Trouble** - Zone trouble condition
 - **Zone [XXX] Bypassed** - Zone bypass status
 - **Zone [XXX] RF Supervision** - RF supervision status (if supported)
 
 #### System Sensors
+
 - **[Panel] AC Power** - Mains power status
 - **[Panel] Battery** - Battery status
 - **[Panel] Ready to Arm** - System ready state
@@ -145,14 +164,17 @@ The User PIN should be formatted as: `[User Number] [PIN Code]`
 - **[Panel] RF Receiver** - RF receiver status (if supported)
 
 ### Switches
+
 - **Output [X]** - Control panel outputs (lights, sirens, etc.)
 
-### Buttons  
+### Buttons
+
 - **Zone [XXX] Bypass** - Toggle zone bypass status
 
 ## Services
 
 ### Alarm Control
+
 ```yaml
 # Arm system in away mode
 service: arrowhead_alarm.arm_away
@@ -165,6 +187,7 @@ service: arrowhead_alarm.disarm
 ```
 
 ### Output Control
+
 ```yaml
 # Trigger output for specified duration
 service: arrowhead_alarm.trigger_output
@@ -184,6 +207,7 @@ data:
 ```
 
 ### Zone Management
+
 ```yaml
 # Bypass single zone
 service: arrowhead_alarm.bypass_zone
@@ -205,6 +229,7 @@ data:
 ## Automation Examples
 
 ### Basic Alarm Control
+
 ```yaml
 # Arm system when leaving home
 automation:
@@ -229,6 +254,7 @@ automation:
 ```
 
 ### Zone-Based Automations
+
 ```yaml
 # Turn on lights when front door opens
 automation:
@@ -258,6 +284,7 @@ automation:
 ```
 
 ### Output Control
+
 ```yaml
 # Flash lights on alarm
 automation:
@@ -274,7 +301,8 @@ automation:
           duration: 30
 ```
 
-### Advanced Zone Management  
+### Advanced Zone Management
+
 ```yaml
 # Auto-bypass zones based on conditions
 automation:
@@ -304,15 +332,17 @@ automation:
 
 ### Connection Issues
 
-**Problem**: Cannot connect to panel
+**Problem**: Cannot connect to panel  
 **Solutions**:
+
 - Verify IP address and port number
 - Check network connectivity to panel
 - Ensure panel's TCP interface is enabled
 - Try default credentials (admin/admin)
 
-**Problem**: Authentication failed
+**Problem**: Authentication failed  
 **Solutions**:
+
 - Verify username/password combination
 - Check User PIN format: `"[user] [pin]"`
 - Ensure user has sufficient privileges
@@ -320,23 +350,26 @@ automation:
 
 ### Zone Detection Issues (ECi)
 
-**Problem**: Zones not detected automatically
+**Problem**: Zones not detected automatically  
 **Solutions**:
+
 - Disable auto-detection and set zones manually
 - Check that zones are properly configured in panel
 - Verify areas are active in panel configuration
 - Use manual configuration override
 
-**Problem**: Wrong number of zones detected
+**Problem**: Wrong number of zones detected  
 **Solutions**:
+
 - Override max zones in integration options
 - Check panel configuration for actual zones
 - Verify expander modules are properly configured
 
 ### Performance Issues
 
-**Problem**: Slow response or timeouts
+**Problem**: Slow response or timeouts  
 **Solutions**:
+
 - Increase scan interval in integration options
 - Check network latency to panel
 - Verify panel isn't overloaded with connections
@@ -385,13 +418,15 @@ This integration is registered with Home Assistant Brands for consistent UI appe
 ## Supported Panel Models
 
 ### ESX Elite-SX Series
+
 - **ESX-16** - 16 zones, 4 outputs standard
 - **ESX-32** - 32 zones, expandable outputs
 - **ESX-RF** - RF supervision capable models
 
-### ECi Series  
+### ECi Series
+
 - **ECi-16** - 16 zones standard, expandable to 248
-- **ECi-32** - 32 zones standard, expandable  
+- **ECi-32** - 32 zones standard, expandable
 - **ECi-64** - 64 zones standard, expandable
 - All ECi models support zone expanders and multiple areas
 
@@ -400,6 +435,7 @@ This integration is registered with Home Assistant Brands for consistent UI appe
 Contributions are welcome! Please read the [contributing guidelines](CONTRIBUTING.md) before submitting PRs.
 
 ### Development Setup
+
 ```bash
 # Clone repository
 git clone https://github.com/thanoskas/arrowhead_alarm.git
@@ -418,8 +454,9 @@ pre-commit run --all-files
 ### Reporting Issues
 
 When reporting issues, please include:
+
 - Home Assistant version
-- Integration version  
+- Integration version
 - Panel model and firmware version
 - Debug logs (with sensitive info removed)
 - Steps to reproduce the issue
@@ -437,7 +474,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/thanoskas/arrowhead_alarm/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/thanoskas/arrowhead_alarm/discussions)  
+- **Discussions**: [GitHub Discussions](https://github.com/thanoskas/arrowhead_alarm/discussions)
 - **Community**: [Home Assistant Community](https://community.home-assistant.io/)
 
 ---
@@ -449,10 +486,16 @@ If you find this project helpful and want to support my work, feel free to donat
 
 https://paypal.me/thanoskasolas
 
+<!-- Badge URLs -->
 [releases-shield]: https://img.shields.io/github/release/thanoskas/arrowhead_alarm.svg?style=for-the-badge
 [releases]: https://github.com/thanoskas/arrowhead_alarm/releases
 [commits-shield]: https://img.shields.io/github/commit-activity/y/thanoskas/arrowhead_alarm.svg?style=for-the-badge
 [commits]: https://github.com/thanoskas/arrowhead_alarm/commits/main
 [license-shield]: https://img.shields.io/github/license/thanoskas/arrowhead_alarm.svg?style=for-the-badge
+[license]: https://github.com/thanoskas/arrowhead_alarm/blob/main/LICENSE
+[hacs-shield]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
 [hacs]: https://github.com/hacs/integration
-[hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
+[forum-shield]: https://img.shields.io/badge/community-forum-brightgreen.svg?style=for-the-badge
+[forum]: https://community.home-assistant.io/
+
+
