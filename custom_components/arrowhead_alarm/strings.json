@@ -1,0 +1,60 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "🏠 Arrowhead Alarm Panel Setup",
+        "description": "Choose your alarm panel type to get started:\n\n🔹 **ESX Elite-SX**: {esx_description}\n🔹 **ECi Series**: {eci_description}",
+        "data": {
+          "panel_type": "Panel Type"
+        }
+      },
+      "connection": {
+        "title": "🔗 Connect to Your {panel_name}",
+        "description": "Enter your panel's network information and credentials.\n\n💡 **Tips:**\n• Find the IP address in your panel's network settings\n• Default port is usually {default_port}\n• User PIN format: 'User Code' (e.g., '1 123' for User 1 with PIN 123)",
+        "data": {
+          "host": "IP Address",
+          "port": "Port Number",
+          "user_pin": "User PIN",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "The IP address where your alarm panel can be reached",
+          "port": "TCP port for communication (default: {default_port})",
+          "user_pin": "User number and PIN code separated by space (e.g., '1 123')",
+          "username": "Admin username (typically 'admin')",
+          "password": "Admin password (typically 'admin')"
+        }
+      },
+      "zone_config": {
+        "title": "🏡 Configure Zones for Your {panel_name}",
+        "description": "Set up zone monitoring for your ECi panel.\n\n📊 **Detection Results:**\n• Zones detected: {detected_zones}\n• Areas found: {detected_areas}\n• Highest zone: {max_detected}\n\n💡 **Recommendation:** Enable auto-detection for best results.",
+        "data": {
+          "auto_detect_zones": "🔍 Auto-detect zones and areas",
+          "max_zones": "📊 Maximum zones to monitor",
+          "areas": "🏠 Active areas (comma-separated)",
+          "configure_zone_names": "🏷️ Customize zone names"
+        },
+        "data_description": {
+          "auto_detect_zones": "Automatically detect active zones and areas from your panel's configuration",
+          "max_zones": "Override the maximum zone number to monitor (8-248 zones)",
+          "areas": "Specify which areas are active (leave empty for auto-detection)",
+          "configure_zone_names": "Set custom names for your zones instead of 'Zone 001', 'Zone 002', etc."
+        }
+      },
+      "zone_names": {
+        "title": "🏷️ Name Your Zones",
+        "description": "{description}\n\n💡 **Tip:** Use descriptive names like 'Front Door', 'Kitchen Window', 'Garage Motion' for easier identification.",
+        "data": {
+          "skip_zone_naming": "⏭️ Skip naming (use default Zone 001, Zone 002, etc.)"
+        }
+      },
+      "output_config": {
+        "title": "⚡ Configure Outputs for Your {panel_name}",
+        "description": "Set how many outputs to manage with Home Assistant.\n\n📊 **Panel Specifications:**\n• Standard outputs: {default_outputs}\n• Maximum supported: {max_outputs}\n\n💡 **Note:** You can control lights, sirens, door locks, and other devices connected to panel outputs.",
+        "data": {
+          "max_outputs": "⚡ Number of outputs"
+        },
+        "data_description": {
+          "max_outputs": "How many outputs to create switches for (1-{max_outputs})"
+        

@@ -1,0 +1,32 @@
+# Development and testing dependencies
+
+# Code formatting and linting
+black==24.1.0
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0
+pre-commit==3.6.0
+
+# Testing
+pytest==8.0.0
+pytest-asyncio==0.23.3
+pytest-cov==4.0.0
+pytest-homeassistant-custom-component==0.13.106
+
+# Home Assistant testing
+homeassistant==2024.4.0
+
+# Additional testing utilities
+pytest-mock==3.12.0
+pytest-timeout==2.2.0
+
+# Type checking
+types-requests==2.31.0.20240125
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.5.6
+
+# Development utilities
+build==1.0.3
+twine==4.0.2

@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Arrowhead Alarm Panel Setup",
+        "description": "Select your panel type to begin configuration",
+        "data": {
+          "panel_type": "Panel Type"
+        }
+      },
+      "connection": {
+        "title": "Connection Settings",
+        "description": "Enter the connection details for your {panel_name}",
+        "data": {
+          "host": "IP Address",
+          "port": "Port",
+          "user_pin": "User PIN",
+          "username": "Username", 
+          "password": "Password"
+        },
+        "data_description": {
+          "host": "The IP address of your alarm panel",
+          "port": "The TCP port (default: {default_port})",
+          "user_pin": "User number and PIN code separated by space (e.g., '1 123')",
+          "username": "Administrator username (typically 'admin')",
+          "password": "Administrator password (typically 'admin')"
+        }
+      },
+      "zone_config": {
+        "title": "ECi Zone Configuration",
+        "description": "Configure zone detection for your ECi panel.\n\nDetected Configuration:\n• {detected_zones} zones found\n• Active areas: {detected_areas}\n• Maximum zone: {max_detected}",
+        "data": {
+          "auto_detect_zones": "Auto-detect zones and areas",
+          "max_zones": "Maximum zones to monitor",
+          "areas": "Active areas",
+          "configure_zone_names": "Configure zone names"
+        },
+        "data_description": {
+          "auto_detect_zones": "Automatically detect zones and areas from the panel's configuration",
+          "max_zones": "Override the maximum zone number to monitor (range: 8-248)",
+          "areas": "Specify active areas as comma-separated numbers (e.g., '1,2,3')",
+          "configure_zone_names": "Set custom names for your zones (e.g., 'Front Door', 'Kitchen')"
+        }
+      },
+      "zone_names": {
+        "title": "Zone Names Configuration", 
+        "description": "Customize names for your zones (showing first {zone_count} zones)\nYou can change these later in the integration options.",
+        "data": {
+          "skip_zone_naming": "Skip zone naming (use default names)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the alarm panel. Check IP address and network connectivity.",
+      "connection_refused": "Connection refused by the alarm panel. Check if the panel is online and port is correct.",
+      "timeout": "Connection timeout. The panel may be unreachable or busy.",
+      "auth_failed": "Authentication failed. Check username, password, and user PIN.",
+      "invalid_response": "Invalid response from alarm panel. The panel may be incompatible.",
+      "client_error": "Communication error with the alarm panel.",
+      "unknown": "An unknown error occurred during setup."
+    },
+    "abort": {
+      "already_configured": "This alarm panel is already configured.",
+      "single_instance_allowed": "Only one Arrowhead alarm panel can be configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Arrowhead Alarm Panel Options",
+        "description": "Adjust settings for your {panel_name}",
+        "data": {
+          "scan_interval": "Update interval (seconds)",
+          "timeout": "Communication timeout (seconds)",
+          "enable_debug_logging": "Enable debug logging",
+          "auto_detect_zones": "Auto-detect zones and areas",
+          "max_zones": "Maximum zones to monitor", 
+          "areas": "Active areas",
+          "configure_zone_names": "Configure zone names"
+        },
+        "data_description": {
+          "scan_interval": "How often to poll the panel for status updates (10-300 seconds)",
+          "timeout": "Maximum time to wait for panel responses (5-60 seconds)",
+          "enable_debug_logging": "Enable detailed logging for troubleshooting issues",
+          "auto_detect_zones": "Automatically detect zones and areas from panel configuration",
+          "max_zones": "Maximum zone number to monitor (8-{max_zones} for this panel type)",
+          "areas": "Active areas as comma-separated numbers (1-32)",
+          "configure_zone_names": "Set custom names for your zones"
+        }
+      },
+      "zone_names": {
+        "title": "Zone Names Configuration",
+        "description": "Set custom names for your zones (showing {zone_count} zones)",
+        "data": {}
+      }
+    }
+  }
+}

@@ -1,0 +1,111 @@
+trigger_output:
+  name: Trigger Output
+  description: Trigger an output on the alarm panel for a specified duration
+  fields:
+    output_number:
+      name: Output Number
+      description: The output number to trigger (1-32 depending on panel)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    duration:
+      name: Duration (seconds)
+      description: Duration to keep output active (0 = toggle/momentary)
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 3600
+          mode: box
+
+turn_output_on:
+  name: Turn Output On
+  description: Turn an output on permanently
+  fields:
+    output_number:
+      name: Output Number
+      description: The output number to turn on (1-32 depending on panel)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+
+turn_output_off:
+  name: Turn Output Off
+  description: Turn an output off
+  fields:
+    output_number:
+      name: Output Number
+      description: The output number to turn off (1-32 depending on panel)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+
+bypass_zone:
+  name: Bypass Zone
+  description: Bypass a zone (exclude from arming)
+  fields:
+    zone_number:
+      name: Zone Number
+      description: The zone number to bypass
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 248
+          mode: box
+
+unbypass_zone:
+  name: Remove Zone Bypass
+  description: Remove bypass from a zone (include in arming)
+  fields:
+    zone_number:
+      name: Zone Number
+      description: The zone number to unbypass
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 248
+          mode: box
+
+bulk_bypass:
+  name: Bulk Zone Bypass
+  description: Bypass or unbypass multiple zones at once
+  fields:
+    zones:
+      name: Zone Numbers
+      description: List of zone numbers to operate on
+      required: true
+      selector:
+        object:
+    action:
+      name: Action
+      description: Whether to bypass or unbypass the zones
+      required: true
+      selector:
+        select:
+          options:
+            - bypass
+            - unbypass
+
+arm_away:
+  name: Arm Away
+  description: Arm the alarm system in away mode
+
+arm_stay:
+  name: Arm Stay
+  description: Arm the alarm system in stay/home mode
+
+disarm:
+  name: Disarm
+  description: Disarm the alarm system
