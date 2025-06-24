@@ -1,30 +1,32 @@
 <div align="center">
 <h1 style="font-size: 3em; margin: 0.5em 0;">Arrowhead Alarm Panel Integration for Home Assistant</h1>
 </div>
-<div align="center">
-
 
 <div align="center">
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/arrowhead_logo.png" alt="Arrowhead Alarm Products" width="200">
 </div>
+
 <div align="center">
+
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
 [![License][license-shield]][license]
 [![HACS][hacs-shield]][hacs]
 [![Community Forum][forum-shield]][forum]
+
 </div>
 
-
-Advanced Home Assistant integration for Arrowhead Alarm Panel systems with comprehensive zone detection and panel-specific optimizations.
-
-
+<div align="center">
+<strong>Advanced Home Assistant integration for Arrowhead Alarm Panel systems with comprehensive zone detection and panel-specific optimizations.</strong>
+</div>
 
 <div align="center">
   <p><strong>Integration implemented by <a href="https://smarthomehellas.gr">smarthomehellas.gr</a> supported by <a href="https://iascom.gr">iascom.gr</a></strong> - <strong>Exclusive Greek Arrowhead Distributor</strong></p>
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/smarthomehellas_logo.png" alt="Smart Home Hellas" width="120">
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/iascom_logo.png" alt="Iascom" width="120">
 </div>
+
+---
 
 ## Overview
 
@@ -55,6 +57,7 @@ This integration provides complete Home Assistant support for Arrowhead Alarm Pa
 - RF supervision support
 - Dual area configuration
 - Tamper detection
+
 ## Key Features
 
 ### 🏠 Comprehensive Device Support
@@ -102,7 +105,11 @@ This integration provides complete Home Assistant support for Arrowhead Alarm Pa
    - Search for "Arrowhead Alarm Panel"
    - Follow the configuration wizard
 
+<div align="center">
+
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=thanoskas&repository=arrowhead_alarm&category=integration)
+
+</div>
 
 ### Manual Installation
 
@@ -443,7 +450,6 @@ This integration is registered with Home Assistant Brands for consistent UI appe
 
 - **ECi - Pro**
 
-
 ## Contributing
 
 Contributions are welcome! Please read the [contributing guidelines](CONTRIBUTING.md) before submitting PRs.
@@ -493,12 +499,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**⭐ If this integration helps you secure your home, please consider starring the repository!**
+<div align="center">
+<strong>⭐ If this integration helps you secure your home, please consider starring the repository!</strong>
+</div>
 
-☕ Support My Work
-If you find this project helpful and want to support my work, feel free to donate via PayPal:
-
-https://paypal.me/thanoskasolas
+<div align="center">
+<strong>☕ Support My Work</strong><br>
+If you find this project helpful and want to support my work, feel free to donate via PayPal:<br>
+<a href="https://paypal.me/thanoskasolas">https://paypal.me/thanoskasolas</a>
+</div>
 
 <!-- Badge URLs -->
 [releases-shield]: https://img.shields.io/github/release/thanoskas/arrowhead_alarm.svg?style=for-the-badge
@@ -511,5 +520,3 @@ https://paypal.me/thanoskasolas
 [hacs]: https://github.com/hacs/integration
 [forum-shield]: https://img.shields.io/badge/community-forum-brightgreen.svg?style=for-the-badge
 [forum]: https://community.home-assistant.io/
-
-
