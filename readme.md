@@ -432,16 +432,12 @@ This integration is registered with Home Assistant Brands for consistent UI appe
 
 ### ESX Elite-SX Series
 
-- **ESX-16** - 16 zones, 4 outputs standard
-- **ESX-32** - 32 zones, expandable outputs
-- **ESX-RF** - RF supervision capable models
+- **ESX-1** (Not tested but should work)
 
 ### ECi Series
 
-- **ECi-16** - 16 zones standard, expandable to 248
-- **ECi-32** - 32 zones standard, expandable
-- **ECi-64** - 64 zones standard, expandable
-- All ECi models support zone expanders and multiple areas
+- **ECi - Pro**
+
 
 ## Contributing
 
