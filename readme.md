@@ -58,6 +58,45 @@ This integration provides complete Home Assistant support for Arrowhead Alarm Pa
 - Dual area configuration
 - Tamper detection
 
+## Prerequisites - Alarm Panel Configuration
+
+⚠️ **IMPORTANT**: Before installing the Home Assistant integration, you must configure your Arrowhead alarm panel with the following settings:
+
+### Network Configuration
+
+**Network Settings (P201E4E)**
+- **Enable Serial Over IP** - This is required for TCP/IP communication with Home Assistant
+
+### Serial Port Configuration  
+
+**Serial Port Options (P25E19-21E)**
+- **Enable Serial Authorization** in **Option C** under the options tab
+- This setting is essential for the integration to authenticate with the panel
+
+### Configuration Steps
+
+1. **Access Panel Programming Mode**
+   - Enter installer/programming mode on your panel
+   - Navigate to the network and serial port settings
+
+2. **Configure Network Settings**
+   - Go to **P201E4E** (Network Settings)
+   - **Enable Serial Over IP** functionality
+   - Note the IP address and port (default: 9000)
+
+3. **Configure Serial Authorization**
+   - Navigate to **P25E19-21E** (Serial Port Options)
+   - Select **Option C** under the options tab
+   - **Enable Serial Authorization**
+
+4. **Save Configuration**
+   - Save all changes and exit programming mode
+   - The panel may require a restart to apply network settings
+
+> **Note**: Without these panel configurations, the Home Assistant integration will not be able to establish communication with your alarm system.
+
+
+
 ## Key Features
 
 ### 🏠 Comprehensive Device Support
