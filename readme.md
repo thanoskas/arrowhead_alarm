@@ -1,4 +1,7 @@
-
+<div align="center">
+<h1 style="font-size: 3em; margin: 0.5em 0;">Arrowhead Alarm Panel Integration for Home Assistant</h1>
+</div>
+<div align="center">
 
 <div align="center">
 Arrowhead Alarm Panel Integration for Home Assistant
