@@ -4,7 +4,7 @@
 <div align="center">
 
 <div align="center">
-Arrowhead Alarm Panel Integration for Home Assistant
+
 </div>
 <div align="center">
 <div align="center">
