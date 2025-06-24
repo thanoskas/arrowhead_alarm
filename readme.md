@@ -16,26 +16,40 @@ Advanced Home Assistant integration for Arrowhead Alarm Panel systems with compr
 
 
 <div align="center">
-  <p><strong>Integration implemented by <a href="https://smarthomehellas.gr">smarthomehellas.gr</a> supported by <a href="https://iascom.gr">iascom.gr </a></strong> - Exclusive Greek Arrowhead Distributor</p>
+  <p><strong>Integration implemented by <a href="https://smarthomehellas.gr">smarthomehellas.gr</a> supported by <a href="https://iascom.gr">iascom.gr</a></strong> - <strong>Exclusive Greek Arrowhead Distributor</strong></p>
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/smarthomehellas_logo.png" alt="Smart Home Hellas" width="120">
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/iascom_logo.png" alt="Iascom" width="120">
 </div>
 
+## Overview
 
-Overview
+This integration provides complete Home Assistant support for Arrowhead Alarm Panel systems, featuring advanced zone detection and panel-specific optimizations.
 
-This integration provides complete Home Assistant support for Arrowhead Alarm Panel systems, including:
+### Supported Panel Series
+
+#### 🔹 ECi Series
 <div align="center">
-🔹 ECi Series
-<img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/eci_panel.jpg" alt="ECi Series Panel" width="300">
-Up to 248 zones • 32 outputs • Dynamic zone detection
-
-  
-  🔹 ESX Elite-SX Series
-<img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/esx_panel.jpg" alt="ESX Elite-SX Panel" width="300">
-Up to 32 zones • 16 outputs • RF supervision support
+  <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/eci_panel.jpg" alt="ECi Series Panel" width="300">
 </div>
 
+**Key Specifications:**
+- Up to 248 zones
+- 32 outputs
+- Dynamic zone detection
+- Multiple area support
+- Zone expander compatibility
+
+#### 🔹 ESX Elite-SX Series
+<div align="center">
+  <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/esx_panel.jpg" alt="ESX Elite-SX Panel" width="300">
+</div>
+
+**Key Specifications:**
+- Up to 32 zones
+- 16 outputs
+- RF supervision support
+- Dual area configuration
+- Tamper detection
 ## Key Features
 
 ### 🏠 Comprehensive Device Support
