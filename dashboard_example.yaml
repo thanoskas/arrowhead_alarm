@@ -1,0 +1,1008 @@
+type: grid
+cards:
+  - type: tile
+    entity: alarm_control_panel.arrowhead_eci_series
+    features_position: bottom
+    vertical: true
+    show_entity_picture: true
+    hide_state: false
+    grid_options:
+      columns: 12
+      rows: 1
+    card_mod:
+      style: |
+        ha-card {
+          position: relative;
+        }
+        ha-card::after {
+          content: "{% if state_attr(config.entity, 'ready_to_arm') %}READY{% endif %}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          color: green;
+          text-align: right;
+        }
+        ha-card .system-status::before {
+          content: "{% if state_attr(config.entity, 'system_status') and state_attr(config.entity, 'system_status') != 'Normal' %}{{ state_attr(config.entity, 'system_status')|replace(', ', '\A') }}{% endif %}";
+          position: absolute;
+          top: 15px;
+          left: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          color: red;
+          text-align: left;
+          white-space: pre-line;
+          line-height: 1.3;
+        }
+        ha-card div::before {
+          content: "{% if not state_attr(config.entity, 'mains_power') %}AC FAIL{% endif %}{% if not state_attr(config.entity, 'battery_status') %}{% if not state_attr(config.entity, 'mains_power') %} {% endif %}BATTERY FAIL{% endif %}{% if 'Tamper Alarm' in state_attr(config.entity, 'system_status') %}{% if not state_attr(config.entity, 'mains_power') or not state_attr(config.entity, 'battery_status') %} {% endif %}TAMPER{% endif %}";
+          position: absolute;
+          top: 35px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          color: red;
+          text-align: right;
+          white-space: pre-wrap;
+        }
+  - type: tile
+    entity: binary_sensor.zone_001
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_001_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_002
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_002_bypass
+      data: {}
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_003
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_003_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_004
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_004_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_005
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_005_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_006
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_006_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_007
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_007_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_008
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_008_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_009
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_009_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_010
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_010_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_011
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_011_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_012
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_012_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_013
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_013_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_014
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_014_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_015
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_015_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: binary_sensor.zone_016
+    features_position: bottom
+    vertical: false
+    show_entity_picture: true
+    hide_state: false
+    state_content:
+      - state
+      - status_summary
+    tap_action:
+      action: perform-action
+      perform_action: button.press
+      target:
+        entity_id: button.zone_016_bypass
+    grid_options:
+      columns: 12
+      rows: 1
+    icon: mdi:door
+    card_mod:
+      style: |
+        ha-card {
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            --tile-color: purple !important;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            --tile-color: red !important;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            --tile-color: purple !important;
+          {% elif states(config.entity) == 'on' %}
+            --tile-color: yellow !important;
+          {% else %}
+            --tile-color: green !important;
+          {% endif %}
+        }
+        ha-card::after {
+          content: "{{ state_attr(config.entity,'status_summary') }}";
+          position: absolute;
+          top: 15px;
+          right: 5px;
+          padding: 5px;
+          font-size: 12px;
+          z-index: 999;
+          border-radius: 4px;
+          {% if state_attr(config.entity, 'zone_bypassed') %}
+            background: purple;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_alarm') %}
+            background: red;
+            color: white;
+          {% elif state_attr(config.entity, 'zone_trouble') %}
+            background: black;
+            color: white;
+          {% elif states(config.entity) == 'on' %}
+            background: yellow;
+            color: black;
+          {% else %}
+            background: green;
+            color: white;
+          {% endif %}
+        }
+  - type: tile
+    entity: switch.output_1
+  - type: tile
+    entity: switch.output_2
+  - type: tile
+    entity: switch.output_3
+  - type: tile
+    entity: switch.output_4
