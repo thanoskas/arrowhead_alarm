@@ -162,7 +162,39 @@ class TestIntegrationSetup:
         with pytest.raises(ConfigEntryNotReady):
             await async_setup_entry(hass, mock_config_entry_esx)
         
-        # Should disconnect on status failure
+        # Should disconnect on failure
+        mock_client.disconnect.assert_called_once()
+
+    @patch("custom_components.arrowhead_alarm.ArrowheadClient")
+    async def test_setup_entry_connection_timeout(
+        self, mock_client_class, hass: HomeAssistant, mock_config_entry_esx
+    ):
+        """Test setup entry with connection timeout."""
+        # Mock client connection timeout
+        mock_client = MagicMock()
+        mock_client.connect = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_client.disconnect = AsyncMock()
+        mock_client_class.return_value = mock_client
+        
+        with pytest.raises(ConfigEntryNotReady):
+            await async_setup_entry(hass, mock_config_entry_esx)
+
+    @patch("custom_components.arrowhead_alarm.ArrowheadClient")
+    async def test_setup_entry_status_failure(
+        self, mock_client_class, hass: HomeAssistant, mock_config_entry_esx
+    ):
+        """Test setup entry with status retrieval failure."""
+        # Mock client status failure
+        mock_client = MagicMock()
+        mock_client.connect = AsyncMock(return_value=True)
+        mock_client.get_status = AsyncMock(return_value=None)
+        mock_client.disconnect = AsyncMock()
+        mock_client_class.return_value = mock_client
+        
+        with pytest.raises(ConfigEntryNotReady):
+            await async_setup_entry(hass, mock_config_entry_esx)
+        
+        # Should attempt disconnect on failure
         mock_client.disconnect.assert_called_once()
 
     @patch("custom_components.arrowhead_alarm.ArrowheadClient")
@@ -525,36 +557,83 @@ class TestIntegrationDataStructure:
             
             # Data should not be left in hass.data
             if DOMAIN in hass.data:
-                assert entry.entry_id not in hass.data[DOMAIN]client_class.return_value = mock_client
-        
-        with pytest.raises(ConfigEntryNotReady):
-            await async_setup_entry(hass, mock_config_entry_esx)
-        
-        # Should attempt disconnect on failure
-        mock_client.disconnect.assert_called_once()
+                assert entry.entry_id not in hass.data[DOMAIN]
 
-    @patch("custom_components.arrowhead_alarm.ArrowheadClient")
-    async def test_setup_entry_connection_timeout(
-        self, mock_client_class, hass: HomeAssistant, mock_config_entry_esx
-    ):
-        """Test setup entry with connection timeout."""
-        # Mock client connection timeout
-        mock_client = MagicMock()
-        mock_client.connect = AsyncMock(side_effect=asyncio.TimeoutError())
-        mock_client.disconnect = AsyncMock()
-        mock_client_class.return_value = mock_client
-        
-        with pytest.raises(ConfigEntryNotReady):
-            await async_setup_entry(hass, mock_config_entry_esx)
 
-    @patch("custom_components.arrowhead_alarm.ArrowheadClient")
-    async def test_setup_entry_status_failure(
-        self, mock_client_class, hass: HomeAssistant, mock_config_entry_esx
-    ):
-        """Test setup entry with status retrieval failure."""
-        # Mock client status failure
-        mock_client = MagicMock()
-        mock_client.connect = AsyncMock(return_value=True)
-        mock_client.get_status = AsyncMock(return_value=None)
-        mock_client.disconnect = AsyncMock()
-        mock_
+class TestIntegrationPlatforms:
+    """Test integration platform loading."""
+
+    async def test_platforms_are_loaded(self, hass: HomeAssistant):
+        """Test that all required platforms are loaded."""
+        with patch("custom_components.arrowhead_alarm.ArrowheadClient") as mock_client_class, \
+             patch("custom_components.arrowhead_alarm.ArrowheadDataUpdateCoordinator") as mock_coordinator_class:
+            
+            mock_client = MagicMock()
+            mock_client.connect = AsyncMock(return_value=True)
+            mock_client.get_status = AsyncMock(return_value={"connection_state": "connected"})
+            mock_client.configure_manual_outputs = MagicMock()
+            mock_client._status = {"outputs": {}}
+            mock_client_class.return_value = mock_client
+            
+            mock_coordinator = MagicMock()
+            mock_coordinator.async_setup = AsyncMock()
+            mock_coordinator.data = {"connection_state": "connected"}
+            mock_coordinator_class.return_value = mock_coordinator
+            
+            entry = MagicMock()
+            entry.entry_id = "test_entry"
+            entry.data = {"host": "192.168.1.100", "panel_type": PANEL_TYPE_ESX}
+            entry.options = {}
+            entry.async_on_unload = MagicMock()
+            entry.add_update_listener = MagicMock()
+            
+            # Mock platform setup to capture platforms
+            platforms_loaded = []
+            
+            async def mock_forward_entry_setups(entry, platforms):
+                platforms_loaded.extend(platforms)
+                
+            hass.config_entries.async_forward_entry_setups = mock_forward_entry_setups
+            
+            await async_setup_entry(hass, entry)
+            
+            # Verify all expected platforms are loaded
+            from custom_components.arrowhead_alarm import PLATFORMS
+            expected_platforms = set(PLATFORMS)
+            loaded_platforms = set(platforms_loaded)
+            
+            assert expected_platforms == loaded_platforms
+
+    async def test_update_listener_registration(self, hass: HomeAssistant):
+        """Test that update listener is properly registered."""
+        with patch("custom_components.arrowhead_alarm.ArrowheadClient") as mock_client_class, \
+             patch("custom_components.arrowhead_alarm.ArrowheadDataUpdateCoordinator") as mock_coordinator_class:
+            
+            mock_client = MagicMock()
+            mock_client.connect = AsyncMock(return_value=True)
+            mock_client.get_status = AsyncMock(return_value={"connection_state": "connected"})
+            mock_client.configure_manual_outputs = MagicMock()
+            mock_client._status = {"outputs": {}}
+            mock_client_class.return_value = mock_client
+            
+            mock_coordinator = MagicMock()
+            mock_coordinator.async_setup = AsyncMock()
+            mock_coordinator.data = {"connection_state": "connected"}
+            mock_coordinator_class.return_value = mock_coordinator
+            
+            entry = MagicMock()
+            entry.entry_id = "test_entry"
+            entry.data = {"host": "192.168.1.100", "panel_type": PANEL_TYPE_ESX}
+            entry.options = {}
+            entry.async_on_unload = MagicMock()
+            entry.add_update_listener = MagicMock()
+            
+            hass.config_entries.async_forward_entry_setups = AsyncMock()
+            
+            await async_setup_entry(hass, entry)
+            
+            # Verify update listener was registered
+            entry.add_update_listener.assert_called_once()
+            
+            # Verify unload callback was registered
+            entry.async_on_unload.assert_called_once()
