@@ -3,10 +3,7 @@
 </div>
 <div align="center">
 
-<div align="center">
 
-</div>
-<div align="center">
 <div align="center">
   <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/arrowhead_logo.png" alt="Arrowhead Alarm Products" width="200">
 </div>
