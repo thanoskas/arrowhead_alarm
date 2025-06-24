@@ -147,20 +147,6 @@ The User PIN should be formatted as: `[User Number] [PIN Code]`
 - Example: `"1 123"` for User 1 with PIN 123
 - Example: `"2 456"` for User 2 with PIN 456
 
-### Panel-Specific Configuration
-
-#### ESX Elite-SX
-
-- **Zones**: 1-32 (fixed configuration)
-- **Outputs**: 1-16 with expander support
-- **Features**: RF supervision, dual areas, tamper detection
-
-#### ECi Series
-
-- **Zones**: 1-248 with auto-detection
-- **Outputs**: 1-32 with expander support
-- **Features**: Multiple areas, zone expanders, advanced detection
-
 ## Entities Created
 
 ### Alarm Control Panel
