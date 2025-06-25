@@ -18,14 +18,8 @@
 
 
 <div align="center">
-[![GitHub Release][releases-shield]][releases]
-[![GitHub Activity][commits-shield]][commits]
-[![License][license-shield]][license]
-[![HACS][hacs-shield]][hacs]
-[![Community Forum][forum-shield]][forum]
-  
+[![GitHub Release][releases-shield]][releases] [![GitHub Activity][commits-shield]][commits] [![License][license-shield]][license] [![HACS][hacs-shield]][hacs] [![Community Forum][forum-shield]][forum]
 </div>
-
 
 
 <div align="center">
