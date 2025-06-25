@@ -116,6 +116,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("Setting up coordinator...")
         await coordinator.async_setup()
         _LOGGER.info("Coordinator setup complete")
+        
+        # Verify we have data
+        if coordinator.data:
+            _LOGGER.info("Coordinator has data with keys: %s", list(coordinator.data.keys()))
+        else:
+            _LOGGER.warning("Coordinator setup complete but no data available yet")
+            
     except Exception as err:
         _LOGGER.error("Failed to set up coordinator: %s", err)
         await client.disconnect()
