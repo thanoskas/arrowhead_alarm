@@ -26,8 +26,7 @@
   
 </div>
 
-<style> a img:hover { opacity: 0.8; } </style>
-</div>
+
 
 <div align="center">
 <strong>Advanced Home Assistant integration for Arrowhead Alarm Panel systems with comprehensive zone detection and panel-specific optimizations.</strong>
