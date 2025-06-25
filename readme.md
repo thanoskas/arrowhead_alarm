@@ -2,11 +2,21 @@
 <h1 style="font-size: 3em; margin: 0.5em 0;">Arrowhead Alarm Panel Integration for Home Assistant</h1>
 </div>
 
-<div align="center">
-  <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/arrowhead_logo.png" alt="Arrowhead Alarm Products" width="200">
+<div align="center" style="display: flex; justify-content: center; align-items: center; gap: 40px; margin: 20px 0;">
+  <a href="https://www.aap.co.nz/" target="_blank" style="text-decoration: none;">
+    <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/arrowhead_logo.png" alt="Arrowhead Alarm Products" width="200" style="transition: opacity 0.3s ease;">
+  </a>
+  
+  <a href="https://elitealarms.co.nz/" target="_blank" style="text-decoration: none;">
+    <img src="https://github.com/thanoskas/arrowhead_alarm/raw/main/docs/images/elite_logo.png" alt="Elite Alarms" width="200" style="transition: opacity 0.3s ease;">
+  </a>
 </div>
 
-<div align="center">
+<style>
+  a img:hover {
+    opacity: 0.8;
+  }
+</style>
 
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
