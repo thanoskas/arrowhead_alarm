@@ -1,4 +1,4 @@
-"""Arrowhead Alarm Panel alarm control panel platform."""
+"""Arrowhead Alarm Panel alarm control panel platform with dynamic icons."""
 import logging
 from typing import Any, Dict, Optional
 
@@ -29,6 +29,19 @@ from .coordinator import ArrowheadDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+# Icon mappings for different alarm states
+ALARM_STATE_ICONS = {
+    AlarmControlPanelState.DISARMED: "mdi:shield-off",
+    AlarmControlPanelState.ARMED_AWAY: "mdi:shield-lock",
+    AlarmControlPanelState.ARMED_HOME: "mdi:shield-half-full",
+    AlarmControlPanelState.ARMING: "mdi:shield-sync",
+    AlarmControlPanelState.PENDING: "mdi:shield-sync",
+    AlarmControlPanelState.TRIGGERED: "mdi:shield-alert",
+}
+
+# Fallback icon
+DEFAULT_ALARM_ICON = "mdi:shield-home"
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -43,7 +56,7 @@ async def async_setup_entry(
     ])
 
 class ArrowheadAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
-    """Representation of an Arrowhead Alarm Panel."""
+    """Representation of an Arrowhead Alarm Panel with dynamic icons."""
 
     def __init__(
         self,
@@ -102,8 +115,41 @@ class ArrowheadAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
                 
         return AlarmControlPanelState.DISARMED
 
-    # REMOVED: The deprecated 'state' property that was causing the warning
-    # Home Assistant will now use alarm_state directly
+    @property
+    def icon(self) -> str:
+        """Return dynamic icon based on current alarm state."""
+        current_state = self.alarm_state
+        
+        # Get icon for current state
+        icon = ALARM_STATE_ICONS.get(current_state, DEFAULT_ALARM_ICON)
+        
+        # Special handling for triggered state - use animated/attention-getting icon
+        if current_state == AlarmControlPanelState.TRIGGERED:
+            return "mdi:shield-alert"
+        
+        # Special handling for pending/arming state
+        if current_state in [AlarmControlPanelState.ARMING, AlarmControlPanelState.PENDING]:
+            return "mdi:shield-sync"
+        
+        # Check for system issues and modify icon accordingly
+        if self.coordinator.data:
+            data = self.coordinator.data
+            
+            # If there are system issues, use warning variants
+            has_issues = (
+                not data.get("mains_ok", True) or
+                not data.get("battery_ok", True) or
+                not data.get("line_ok", True) or
+                data.get("tamper_alarm", False)
+            )
+            
+            if has_issues:
+                if current_state == AlarmControlPanelState.DISARMED:
+                    return "mdi:shield-alert-outline"
+                elif current_state in [AlarmControlPanelState.ARMED_AWAY, AlarmControlPanelState.ARMED_HOME]:
+                    return "mdi:shield-lock-outline"
+        
+        return icon
 
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
@@ -130,9 +176,10 @@ class ArrowheadAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             "connection_state": data.get("connection_state", "unknown"),
             "active_zones": active_zones,
             "alarm_zones": alarm_zones,
-            "active_outputs": active_outputs,  # Add active outputs
+            "active_outputs": active_outputs,
             "total_zones_configured": len(zones),
-            "total_outputs_configured": len(outputs),  # Add output count
+            "total_outputs_configured": len(outputs),
+            "current_icon": self.icon,  # Include current icon for debugging
         }
         
         # Add output detection information

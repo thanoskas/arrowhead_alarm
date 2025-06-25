@@ -1,4 +1,4 @@
-"""Constants for the Arrowhead Alarm Panel integration with enhanced zone and output support."""
+"""Constants for the Arrowhead Alarm Panel integration with enhanced zone, output support, and dynamic icons."""
 
 DOMAIN = "arrowhead_alarm"
 
@@ -93,6 +93,7 @@ OUTPUT_DETECTION_METHODS = {
     "output_testing": "Output Testing",
     "status_parsing": "Status Message Parsing", 
     "panel_defaults": "Panel Type Defaults",
+    "manual_configuration": "Manual Configuration",
     "error_fallback": "Emergency Fallback"
 }
 
@@ -162,6 +163,255 @@ PANEL_CONFIGS = {
     }
 }
 
+# ========================================
+# DYNAMIC ICON SYSTEM
+# ========================================
+
+# Icon mappings for different entity types and states
+ENTITY_ICONS = {
+    "alarm_control_panel": {
+        "disarmed": "mdi:shield-off",
+        "armed_away": "mdi:shield-lock", 
+        "armed_home": "mdi:shield-half-full",
+        "arming": "mdi:shield-sync",
+        "pending": "mdi:shield-sync",
+        "triggered": "mdi:shield-alert",
+        "default": "mdi:shield-home",
+        # System issue variants
+        "disarmed_issues": "mdi:shield-alert-outline",
+        "armed_issues": "mdi:shield-lock-outline"
+    },
+    "binary_sensor": {
+        # Zone sensors
+        "zone_state_closed": "mdi:door-closed",
+        "zone_state_open": "mdi:door-open",
+        "zone_alarm_active": "mdi:alert-circle",
+        "zone_alarm_inactive": "mdi:alert-circle-outline",
+        "zone_trouble_active": "mdi:alert-triangle",
+        "zone_trouble_inactive": "mdi:alert-triangle-outline",
+        "zone_bypassed_active": "mdi:shield-off",
+        "zone_bypassed_inactive": "mdi:shield-off-outline",
+        "zone_supervise_fail_active": "mdi:wifi-off",
+        "zone_supervise_fail_inactive": "mdi:wifi",
+        
+        # System sensors
+        "system_mains_ok": "mdi:power-plug",
+        "system_mains_fail": "mdi:power-plug-off",
+        "system_battery_ok": "mdi:battery",
+        "system_battery_low": "mdi:battery-alert",
+        "system_ready_to_arm": "mdi:shield-check",
+        "system_not_ready": "mdi:shield-remove",
+        "system_line_ok": "mdi:phone",
+        "system_line_fail": "mdi:phone-off",
+        "system_dialer_ok": "mdi:phone-dial",
+        "system_dialer_fail": "mdi:phone-alert",
+        "system_fuse_ok": "mdi:fuse",
+        "system_fuse_fail": "mdi:fuse-alert",
+        "system_rf_receiver_ok": "mdi:radio-tower",
+        "system_rf_receiver_fail": "mdi:radio-tower-off",
+        "system_rf_battery_ok": "mdi:battery-wireless",
+        "system_rf_battery_low": "mdi:battery-wireless-alert",
+        "system_sensor_watch_ok": "mdi:eye-check",
+        "system_sensor_watch_alarm": "mdi:eye-alert",
+        "system_tamper_normal": "mdi:shield-check",
+        "system_tamper_alarm": "mdi:shield-alert"
+    },
+    "switch": {
+        "output_off": "mdi:electric-switch",
+        "output_on": "mdi:electric-switch-closed",
+        "output_momentary": "mdi:gesture-tap-button"
+    },
+    "button": {
+        "bypass_inactive": "mdi:shield-off-outline",
+        "bypass_active": "mdi:shield-off"
+    }
+}
+
+# Custom icon definitions (for future use with custom icon font)
+CUSTOM_ICONS = {
+    "integration": "arrowhead:shield-panel",
+    "alarm_panel": "arrowhead:control-panel", 
+    "zone_sensor": "arrowhead:door-sensor",
+    "output_switch": "arrowhead:output-relay",
+    "system_sensor": "arrowhead:system-status"
+}
+
+# Common zone type icons (can be used for zone customization)
+ZONE_TYPE_ICONS = {
+    "door": {"closed": "mdi:door-closed", "open": "mdi:door-open"},
+    "window": {"closed": "mdi:window-closed", "open": "mdi:window-open"},
+    "motion": {"inactive": "mdi:motion-sensor-off", "active": "mdi:motion-sensor"},
+    "glass": {"normal": "mdi:window-closed-variant", "alarm": "mdi:glass-fragile"},
+    "smoke": {"normal": "mdi:smoke-detector", "alarm": "mdi:smoke-detector-alert"},
+    "flood": {"normal": "mdi:water-off", "alarm": "mdi:water-alert"},
+    "temperature": {"normal": "mdi:thermometer", "alarm": "mdi:thermometer-alert"},
+    "panic": {"normal": "mdi:alarm-bell", "alarm": "mdi:alarm-bell"},
+    "medical": {"normal": "mdi:medical-bag", "alarm": "mdi:medical-bag"},
+    "fire": {"normal": "mdi:fire-off", "alarm": "mdi:fire-alert"},
+    "gas": {"normal": "mdi:gas-cylinder", "alarm": "mdi:gas-cylinder-alert"}
+}
+
+# ========================================
+# ICON HELPER FUNCTIONS
+# ========================================
+
+def get_entity_icon(entity_type: str, entity_subtype: str = None, state: any = None, 
+                   has_issues: bool = False) -> str:
+    """Get appropriate icon for entity type, subtype, and state.
+    
+    Args:
+        entity_type: Type of entity (alarm_control_panel, binary_sensor, etc.)
+        entity_subtype: Subtype of entity (zone_state, system_mains, etc.)
+        state: Current state (True/False for binary sensors, state enum for alarm)
+        has_issues: Whether the entity has system issues
+    
+    Returns:
+        MDI icon string
+    """
+    if entity_type not in ENTITY_ICONS:
+        return "mdi:help-circle"
+    
+    icons = ENTITY_ICONS[entity_type]
+    
+    # Handle alarm control panel icons
+    if entity_type == "alarm_control_panel":
+        if hasattr(state, 'value'):
+            state_key = state.value  # Handle enum states
+        else:
+            state_key = str(state) if state else "disarmed"
+        
+        # Check for system issues variant
+        if has_issues:
+            issue_key = f"{state_key}_issues"
+            if issue_key in icons:
+                return icons[issue_key]
+        
+        return icons.get(state_key, icons.get("default", "mdi:shield-home"))
+    
+    # Handle binary sensor icons
+    if entity_type == "binary_sensor" and entity_subtype:
+        state_suffix = "active" if state else "inactive"
+        
+        # Special handling for zone state sensors (open/closed instead of active/inactive)
+        if entity_subtype == "zone_state":
+            state_suffix = "open" if state else "closed"
+        
+        # Try specific state icon first
+        state_key = f"{entity_subtype}_{state_suffix}"
+        if state_key in icons:
+            return icons[state_key]
+        
+        # Try base subtype
+        if entity_subtype in icons:
+            return icons[entity_subtype]
+    
+    # Handle switch icons
+    if entity_type == "switch":
+        if entity_subtype == "output":
+            if state:
+                return icons.get("output_on", "mdi:electric-switch-closed")
+            else:
+                return icons.get("output_off", "mdi:electric-switch")
+    
+    # Handle button icons
+    if entity_type == "button" and entity_subtype:
+        state_suffix = "active" if state else "inactive"
+        state_key = f"{entity_subtype}_{state_suffix}"
+        if state_key in icons:
+            return icons[state_key]
+    
+    # Fallback to default or help icon
+    return icons.get("default", "mdi:help-circle")
+
+def get_alarm_panel_icon(alarm_state: str, has_system_issues: bool = False) -> str:
+    """Get icon for alarm panel based on state and system health.
+    
+    Args:
+        alarm_state: Current alarm state
+        has_system_issues: Whether there are system issues
+        
+    Returns:
+        MDI icon string
+    """
+    return get_entity_icon("alarm_control_panel", None, alarm_state, has_system_issues)
+
+def get_zone_sensor_icon(sensor_type: str, is_active: bool = False, zone_type: str = None) -> str:
+    """Get icon for zone sensor based on type, state, and optional zone type.
+    
+    Args:
+        sensor_type: Type of sensor (state, alarm, trouble, etc.)
+        is_active: Whether the sensor is currently active
+        zone_type: Optional zone type (door, window, motion, etc.)
+        
+    Returns:
+        MDI icon string
+    """
+    # If zone type is specified and it's a state sensor, use zone type icons
+    if zone_type and sensor_type == "state" and zone_type in ZONE_TYPE_ICONS:
+        zone_icons = ZONE_TYPE_ICONS[zone_type]
+        state_key = "open" if is_active else "closed"
+        if "active" in zone_icons and "inactive" in zone_icons:
+            state_key = "active" if is_active else "inactive"
+        elif "alarm" in zone_icons and "normal" in zone_icons:
+            state_key = "alarm" if is_active else "normal"
+        return zone_icons.get(state_key, zone_icons.get("closed", "mdi:help-circle"))
+    
+    return get_entity_icon("binary_sensor", f"zone_{sensor_type}", is_active)
+
+def get_system_sensor_icon(sensor_type: str, is_ok: bool = True) -> str:
+    """Get icon for system sensor based on type and status.
+    
+    Args:
+        sensor_type: Type of system sensor (mains, battery, etc.)
+        is_ok: Whether the system is OK (inverted for problem sensors)
+        
+    Returns:
+        MDI icon string
+    """
+    # For "ok" type sensors, invert the state for icon selection
+    # For alarm type sensors, use state directly
+    if sensor_type.endswith("_ok"):
+        state = not is_ok  # Invert for "ok" sensors (True = fail icon)
+        sensor_base = sensor_type[:-3]  # Remove "_ok" suffix
+        state_suffix = "fail" if state else "ok"
+    else:
+        state = is_ok
+        sensor_base = sensor_type
+        state_suffix = "alarm" if state else "normal"
+    
+    state_key = f"system_{sensor_base}_{state_suffix}"
+    return get_entity_icon("binary_sensor", state_key, state)
+
+def get_output_switch_icon(is_on: bool = False, is_momentary: bool = False) -> str:
+    """Get icon for output switch based on state and type.
+    
+    Args:
+        is_on: Whether the output is currently on
+        is_momentary: Whether this is a momentary output
+        
+    Returns:
+        MDI icon string
+    """
+    if is_momentary:
+        return ENTITY_ICONS["switch"]["output_momentary"]
+    
+    return get_entity_icon("switch", "output", is_on)
+
+def get_bypass_button_icon(is_bypassed: bool = False) -> str:
+    """Get icon for bypass button based on state.
+    
+    Args:
+        is_bypassed: Whether the zone is currently bypassed
+        
+    Returns:
+        MDI icon string
+    """
+    return get_entity_icon("button", "bypass", is_bypassed)
+
+# ========================================
+# UTILITY FUNCTIONS
+# ========================================
+
 def generate_zone_names(max_zones: int, prefix: str = "Zone", use_padding: bool = True) -> dict:
     """Generate zone names up to max_zones with zero-padding format."""
     if use_padding:
@@ -229,3 +479,38 @@ def validate_zone_configuration(panel_type: str, max_zones: int, areas: list) ->
         "errors": errors,
         "warnings": warnings
     }
+
+def get_zone_name_with_type(zone_id: int, zone_type: str = None, use_padding: bool = True) -> str:
+    """Generate zone name with optional type information.
+    
+    Args:
+        zone_id: Zone number
+        zone_type: Optional zone type (door, window, motion, etc.)
+        use_padding: Whether to use zero-padding for zone number
+        
+    Returns:
+        Formatted zone name
+    """
+    if use_padding:
+        base_name = f"Zone {zone_id:03d}"
+    else:
+        base_name = f"Zone {zone_id}"
+    
+    if zone_type and zone_type in ZONE_TYPE_ICONS:
+        type_names = {
+            "door": "Door",
+            "window": "Window", 
+            "motion": "Motion",
+            "glass": "Glass Break",
+            "smoke": "Smoke",
+            "flood": "Flood",
+            "temperature": "Temperature",
+            "panic": "Panic",
+            "medical": "Medical",
+            "fire": "Fire",
+            "gas": "Gas"
+        }
+        type_name = type_names.get(zone_type, zone_type.title())
+        return f"{base_name} ({type_name})"
+    
+    return base_name
