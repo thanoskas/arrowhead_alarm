@@ -16,14 +16,15 @@
 ---
 
 
+
+
+
+<div align="center">
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
 [![License][license-shield]][license]
 [![HACS][hacs-shield]][hacs]
 [![Community Forum][forum-shield]][forum]
-
-
-<div align="center">
 <strong>Advanced Home Assistant integration for Arrowhead Alarm Panel systems with comprehensive zone detection and panel-specific optimizations.</strong>
 </div>
 
