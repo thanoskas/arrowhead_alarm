@@ -12,11 +12,7 @@
   </a>
 </div>
 
-<style>
-  a img:hover {
-    opacity: 0.8;
-  }
-</style>
+
 
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
