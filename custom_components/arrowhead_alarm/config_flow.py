@@ -1,4 +1,4 @@
-"""Enhanced config flow for Arrowhead Alarm Panel integration with zone detection."""
+"""Simplified config flow for ECi-only Arrowhead Alarm Panel integration."""
 import asyncio
 import logging
 import voluptuous as vol
@@ -17,74 +17,47 @@ from .const import (
     DEFAULT_USER_PIN,
     DEFAULT_USERNAME,
     DEFAULT_PASSWORD,
-    CONF_PANEL_TYPE,
-    DEFAULT_PANEL_TYPE,
-    PANEL_TYPES,
-    PANEL_TYPE_ESX,
-    PANEL_TYPE_ECI,
-    PANEL_CONFIGS,
+    PANEL_CONFIG,
     CONF_AUTO_DETECT_ZONES,
     CONF_MAX_ZONES,
     CONF_AREAS,
     CONF_MAX_OUTPUTS,
-    DEFAULT_MAX_OUTPUTS
+    DEFAULT_MAX_OUTPUTS,
+    supports_mode_4,
+    get_optimal_protocol_mode,
+    ProtocolMode,
 )
-from .arrowhead_client import ArrowheadClient
+from .arrowhead_eci_client import ArrowheadECiClient
 
 _LOGGER = logging.getLogger(__name__)
 
-class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Enhanced config flow for Arrowhead Alarm Panel with zone detection."""
+class ArrowheadECiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Config flow for ECi-only Arrowhead Alarm Panel."""
 
-    VERSION = 2
+    VERSION = 3
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
     def __init__(self):
         """Initialize the config flow."""
         self.discovery_info: Dict[str, Any] = {}
-        self._test_client: Optional[ArrowheadClient] = None
+        self._test_client: Optional[ArrowheadECiClient] = None
         self._detected_config: Optional[Dict[str, Any]] = None
+        self._firmware_info: Optional[Dict[str, Any]] = None
 
     async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
-        """Handle the initial step - panel type selection."""
+        """Handle the initial step - connection setup."""
         errors = {}
 
         if user_input is not None:
-            self.discovery_info.update(user_input)
-            return await self.async_step_connection()
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_PANEL_TYPE,
-                    default=DEFAULT_PANEL_TYPE
-                ): vol.In(PANEL_TYPES),
-            }),
-            description_placeholders={
-                "esx_description": f"{PANEL_CONFIGS[PANEL_TYPE_ESX]['name']} - Supports up to {PANEL_CONFIGS[PANEL_TYPE_ESX]['max_zones']} zones and {PANEL_CONFIGS[PANEL_TYPE_ESX]['max_outputs']} outputs",
-                "eci_description": f"{PANEL_CONFIGS[PANEL_TYPE_ECI]['name']} - Supports up to {PANEL_CONFIGS[PANEL_TYPE_ECI]['max_zones']} zones and {PANEL_CONFIGS[PANEL_TYPE_ECI]['max_outputs']} outputs",
-            }
-        )
-
-    async def async_step_connection(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
-        """Handle the connection configuration step."""
-        errors = {}
-
-        if user_input is not None:
-            full_config = {**self.discovery_info, **user_input}
-            
             try:
-                connection_info = await self._test_connection(full_config)
+                connection_info = await self._test_connection(user_input)
                 if connection_info["success"]:
-                    self.discovery_info.update(full_config)
+                    self.discovery_info.update(user_input)
                     self._detected_config = connection_info.get("detected_config")
+                    self._firmware_info = connection_info.get("firmware_info")
                     
-                    # For ECi panels, show zone configuration step
-                    if full_config[CONF_PANEL_TYPE] == PANEL_TYPE_ECI:
-                        return await self.async_step_zone_config()
-                    else:
-                        return await self.async_step_output_config()
+                    # Always proceed to zone configuration for ECi
+                    return await self.async_step_zone_config()
                 else:
                     errors["base"] = connection_info["error_type"]
                     
@@ -92,18 +65,15 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected error during connection test: %s", err)
                 errors["base"] = "unknown"
 
-        panel_type = self.discovery_info.get(CONF_PANEL_TYPE, DEFAULT_PANEL_TYPE)
-        panel_config = PANEL_CONFIGS[panel_type]
-        
         return self.async_show_form(
-            step_id="connection",
-            data_schema=self._get_connection_schema(user_input, panel_type),
+            step_id="user",
+            data_schema=self._get_connection_schema(user_input),
             errors=errors,
             description_placeholders={
-                "panel_name": panel_config["name"],
-                "default_port": str(panel_config["default_port"]),
-                "max_zones": str(panel_config["max_zones"]),
-                "max_outputs": str(panel_config["max_outputs"]),
+                "panel_name": PANEL_CONFIG["name"],
+                "default_port": str(PANEL_CONFIG["default_port"]),
+                "max_zones": str(PANEL_CONFIG["max_zones"]),
+                "max_outputs": str(PANEL_CONFIG["max_outputs"]),
             }
         )
 
@@ -120,35 +90,44 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 return await self.async_step_output_config()
 
-        # Get panel configuration
-        panel_type = self.discovery_info.get(CONF_PANEL_TYPE, DEFAULT_PANEL_TYPE)
-        panel_config = PANEL_CONFIGS[panel_type]
-
-        # Prepare zone configuration options
+        # Prepare zone configuration options with firmware info
         detected_zones = 0
         detected_areas = []
         max_detected = 16
         detection_status = "No detection attempted"
+        firmware_status = "Unknown"
+        protocol_mode_info = "Mode 1 (Default)"
+        
+        if self._firmware_info:
+            firmware_version = self._firmware_info.get("version", "Unknown")
+            protocol_mode = self._firmware_info.get("protocol_mode", 1)
+            supports_mode4 = self._firmware_info.get("supports_mode_4", False)
+            
+            firmware_status = f"✅ {firmware_version}"
+            if supports_mode4:
+                protocol_mode_info = f"Mode {protocol_mode} (Enhanced Features Available)"
+            else:
+                protocol_mode_info = f"Mode {protocol_mode} (Standard)"
         
         if self._detected_config:
             detected_zones = self._detected_config.get("total_zones", 0)
-            # FIXED: Handle both set and list formats for active_areas
             active_areas = self._detected_config.get("active_areas", set())
             if isinstance(active_areas, set):
                 detected_areas = sorted(list(active_areas))
             elif isinstance(active_areas, list):
                 detected_areas = sorted(active_areas)
             else:
-                detected_areas = [1]  # Fallback
+                detected_areas = [1]
             max_detected = self._detected_config.get("max_zone", 16)
             detection_method = self._detected_config.get("detection_method", "unknown")
             
             _LOGGER.info("Zone config step - detected: zones=%d, areas=%s, max=%d, method=%s", 
                         detected_zones, detected_areas, max_detected, detection_method)
             
-            # Set status message based on detection results
             if detection_method == "active_areas_query":
-                detection_status = f"✅ Successfully detected via panel query"
+                detection_status = f"✅ Successfully detected via P4076E1 query"
+            elif detection_method == "zones_in_areas_query":
+                detection_status = f"✅ Successfully detected via P4075Ex queries"
             elif detection_method == "status_parsing":
                 detection_status = f"⚠️ Detected via status parsing"
             elif detection_method in ["fallback", "error_fallback"]:
@@ -178,7 +157,9 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }),
             errors=errors,
             description_placeholders={
-                "panel_name": panel_config["name"],
+                "panel_name": PANEL_CONFIG["name"],
+                "firmware_status": firmware_status,
+                "protocol_mode_info": protocol_mode_info,
                 "detected_zones": str(detected_zones) if detected_zones > 0 else "Auto-detection failed",
                 "detected_areas": ",".join(map(str, detected_areas)) if detected_areas else "Auto-detection failed", 
                 "max_detected": str(max_detected),
@@ -223,7 +204,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         more_zones = len(detected_zones) - 16
         description = f"Customize names for your {len(detected_zones)} detected zones"
         if more_zones > 0:
-            description += f"\n\n📝 Note: Showing first 16 zones only. The remaining {more_zones} zones can be renamed later in Settings → Integrations → Arrowhead Alarm Panel → Configure."
+            description += f"\n\n📝 Note: Showing first 16 zones only. The remaining {more_zones} zones can be renamed later in Settings → Integrations → Arrowhead ECi → Configure."
 
         return self.async_show_form(
             step_id="zone_names",
@@ -244,8 +225,10 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self.discovery_info.update(user_input)
             return await self._create_config_entry()
 
-        panel_type = self.discovery_info.get(CONF_PANEL_TYPE, DEFAULT_PANEL_TYPE)
-        panel_config = PANEL_CONFIGS[panel_type]
+        # Show firmware-specific information
+        mode_4_features = ""
+        if self._firmware_info and self._firmware_info.get("supports_mode_4", False):
+            mode_4_features = "\n\n🚀 **MODE 4 Enhanced Features Available:**\n• Enhanced area commands (ARMAREA, STAYAREA)\n• Keypad alarm functions\n• User tracking for arm/disarm events\n• Enhanced entry/exit delay timing"
 
         return self.async_show_form(
             step_id="output_config",
@@ -253,29 +236,28 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_MAX_OUTPUTS,
                     default=DEFAULT_MAX_OUTPUTS
-                ): vol.All(cv.positive_int, vol.Range(min=1, max=panel_config["max_outputs"])),
+                ): vol.All(cv.positive_int, vol.Range(min=1, max=PANEL_CONFIG["max_outputs"])),
             }),
             errors=errors,
             description_placeholders={
-                "panel_name": panel_config["name"],
-                "default_outputs": str(panel_config["default_outputs"]),
-                "max_outputs": str(panel_config["max_outputs"]),
+                "panel_name": PANEL_CONFIG["name"],
+                "default_outputs": str(PANEL_CONFIG["default_outputs"]),
+                "max_outputs": str(PANEL_CONFIG["max_outputs"]),
+                "mode_4_features": mode_4_features,
             }
         )
 
     def _get_default_zone_name(self, zone_id: int) -> str:
-        """Get default zone name with zero-padding format only."""
-        # Always use zero-padded format for consistency
+        """Get default zone name with zero-padding format."""
         return f"Zone {zone_id:03d}"
 
     async def _test_connection(self, user_input: Dict[str, Any]) -> Dict[str, Any]:
-        """Test connection and detect panel configuration."""
+        """Test connection and detect ECi configuration."""
         host = user_input[CONF_HOST]
         port = user_input.get(CONF_PORT, DEFAULT_PORT)
         user_pin = user_input.get(CONF_USER_PIN, DEFAULT_USER_PIN)
         username = user_input.get(CONF_USERNAME, DEFAULT_USERNAME)
         password = user_input.get(CONF_PASSWORD, DEFAULT_PASSWORD)
-        panel_type = user_input.get(CONF_PANEL_TYPE, DEFAULT_PANEL_TYPE)
 
         # Test basic TCP connectivity
         try:
@@ -296,7 +278,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Test full client functionality
         client = None
         try:
-            client = ArrowheadClient(host, port, user_pin, username, password, panel_type)
+            client = ArrowheadECiClient(host, port, user_pin, username, password)
             
             success = await asyncio.wait_for(client.connect(), timeout=20.0)
             
@@ -306,54 +288,42 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             status = await asyncio.wait_for(client.get_status(), timeout=10.0)
             
             if not isinstance(status, dict):
-                return {"success": False, "error_type": "invalid_response", "status": "Invalid response from alarm system"}
+                return {"success": False, "error_type": "invalid_response", "status": "Invalid response from ECi panel"}
 
-            # For ECi panels, try to detect zone configuration
-            detected_config = None
-            if panel_type == PANEL_TYPE_ECI:
-                try:
-                    _LOGGER.info("=== ECi DETECTION START ===")
-                    _LOGGER.info("Attempting ECi zone detection during connection test")
-                    
-                    # Test the specific command first
-                    test_response = await client._send_command("P4076E1?", expect_response=True)
-                    _LOGGER.info("Manual test of P4076E1?: %r", test_response)
-                    
-                    detected_config = await self._detect_eci_configuration(client)
-                    _LOGGER.info("ECi detection completed: areas=%s, zones=%d, method=%s", 
-                               detected_config.get("active_areas"), 
-                               detected_config.get("total_zones", 0),
-                               detected_config.get("detection_method", "unknown"))
-                    _LOGGER.info("=== ECi DETECTION END ===")
-                    
-                except Exception as err:
-                    _LOGGER.error("ECi zone detection failed: %s", err)
-                    import traceback
-                    _LOGGER.error("Full traceback: %s", traceback.format_exc())
-                    
-                    # FIXED: Use sets instead of lists, ensure proper format
-                    detected_config = {
-                        "total_zones": 16,
-                        "max_zone": 16,
-                        "active_areas": {1},  # Changed from [1] to {1}
-                        "detected_zones": set(range(1, 17)),  # Add detected_zones
-                        "zones_in_areas": {1: set(range(1, 17))},  # Add zones_in_areas
-                        "detection_method": "fallback_error",
-                        "error": str(err)
-                    }
-        
-            panel_name = PANEL_TYPES.get(panel_type, panel_type)
+            # Detect firmware and protocol capabilities
+            firmware_info = await self._detect_firmware_info(client)
             
+            # Detect zone configuration
+            detected_config = None
+            try:
+                _LOGGER.info("=== ECi DETECTION START ===")
+                detected_config = await self._detect_eci_configuration(client)
+                _LOGGER.info("ECi detection completed: areas=%s, zones=%d, method=%s", 
+                           detected_config.get("active_areas"), 
+                           detected_config.get("total_zones", 0),
+                           detected_config.get("detection_method", "unknown"))
+                _LOGGER.info("=== ECi DETECTION END ===")
+                
+            except Exception as err:
+                _LOGGER.error("ECi zone detection failed: %s", err)
+                detected_config = {
+                    "total_zones": 16,
+                    "max_zone": 16,
+                    "active_areas": {1},
+                    "detected_zones": set(range(1, 17)),
+                    "zones_in_areas": {1: set(range(1, 17))},
+                    "detection_method": "fallback_error",
+                    "error": str(err)
+                }
+        
             result = {
                 "success": True,
                 "error_type": None,
-                "status": f"Connected successfully to {panel_name}",
+                "status": f"Connected successfully to {PANEL_CONFIG['name']}",
                 "connection_state": status.get("connection_state", "unknown"),
                 "zones_count": len([z for z in status.get("zones", {}).values() if z]),
                 "system_armed": status.get("armed", False),
-                "panel_type": panel_type,
-                "firmware_version": status.get("firmware_version"),
-                "panel_model": status.get("panel_model"),
+                "firmware_info": firmware_info,
             }
             
             if detected_config:
@@ -371,6 +341,48 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     await client.disconnect()
                 except Exception:
                     pass
+
+    async def _detect_firmware_info(self, client) -> Dict[str, Any]:
+        """Detect ECi firmware version and capabilities."""
+        try:
+            firmware_info = {
+                "version": "Unknown",
+                "protocol_mode": 1,
+                "supports_mode_4": False,
+                "optimal_mode": 1,
+            }
+            
+            # Get firmware version
+            version_response = await client._send_command("VERSION", expect_response=True)
+            if version_response:
+                import re
+                version_match = re.search(r'Version\s+"?([^"]+)"?', version_response)
+                if version_match:
+                    firmware_version = version_match.group(1)
+                    firmware_info["version"] = firmware_version
+                    
+                    # Check MODE 4 support
+                    supports_mode4 = supports_mode_4(firmware_version)
+                    firmware_info["supports_mode_4"] = supports_mode4
+                    
+                    # Set optimal protocol mode
+                    optimal_mode = get_optimal_protocol_mode(firmware_version)
+                    firmware_info["optimal_mode"] = optimal_mode
+                    firmware_info["protocol_mode"] = optimal_mode
+                    
+                    _LOGGER.info("Firmware detected: %s, MODE 4 support: %s, Optimal mode: %d", 
+                               firmware_version, supports_mode4, optimal_mode)
+            
+            return firmware_info
+            
+        except Exception as err:
+            _LOGGER.error("Error detecting firmware info: %s", err)
+            return {
+                "version": "Unknown",
+                "protocol_mode": 1,
+                "supports_mode_4": False,
+                "optimal_mode": 1,
+            }
 
     async def _detect_eci_configuration(self, client) -> Dict[str, Any]:
         """Detect ECi panel configuration during setup."""
@@ -394,7 +406,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return {
                 "total_zones": 16,
                 "max_zone": 16,
-                "active_areas": {1},  # Ensure set format
+                "active_areas": {1},
                 "detected_zones": set(range(1, 17)),
                 "zones_in_areas": {1: set(range(1, 17))},
                 "detection_method": "error_fallback"
@@ -402,35 +414,44 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _create_config_entry(self) -> FlowResult:
         """Create the final configuration entry."""
-        unique_id = f"arrowhead_{self.discovery_info[CONF_PANEL_TYPE]}_{self.discovery_info[CONF_HOST]}"
+        unique_id = f"arrowhead_eci_{self.discovery_info[CONF_HOST]}"
         await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured()
 
-        panel_name = PANEL_TYPES[self.discovery_info[CONF_PANEL_TYPE]]
-        
-        # Process zone configuration for ECi panels
-        if self.discovery_info[CONF_PANEL_TYPE] == PANEL_TYPE_ECI:
-            self._process_eci_zone_config()
+        # Include firmware information in config
+        if self._firmware_info:
+            self.discovery_info.update({
+                "firmware_version": self._firmware_info.get("version"),
+                "protocol_mode": self._firmware_info.get("optimal_mode", 1),
+                "supports_mode_4": self._firmware_info.get("supports_mode_4", False),
+            })
+
+        # Process zone configuration
+        self._process_eci_zone_config()
 
         # Build description for config entry
         host = self.discovery_info[CONF_HOST]
         outputs = self.discovery_info.get(CONF_MAX_OUTPUTS, DEFAULT_MAX_OUTPUTS)
+        zones = self.discovery_info.get(CONF_MAX_ZONES, "auto")
+        areas = self.discovery_info.get(CONF_AREAS, "auto")
         
-        # Add zone info for ECi
-        zones_info = ""
-        if self.discovery_info[CONF_PANEL_TYPE] == PANEL_TYPE_ECI:
-            zones = self.discovery_info.get(CONF_MAX_ZONES, "auto")
-            areas = self.discovery_info.get(CONF_AREAS, "auto")
-            zones_info = f" • {zones} zones, areas {areas}"
+        # Build firmware info for description
+        firmware_info = ""
+        if self._firmware_info:
+            version = self._firmware_info.get("version", "Unknown")
+            mode = self._firmware_info.get("protocol_mode", 1)
+            firmware_info = f" • Firmware: {version} (Mode {mode})"
 
         return self.async_create_entry(
-            title=f"Arrowhead {panel_name}",
+            title=f"Arrowhead {PANEL_CONFIG['name']}",
             data=self.discovery_info,
             description_placeholders={
                 "host": host,
-                "panel_type": panel_name,
+                "panel_type": PANEL_CONFIG['name'],
                 "outputs": str(outputs),
-                "zones_info": zones_info,
+                "zones": str(zones),
+                "areas": str(areas),
+                "firmware_info": firmware_info,
             }
         )
 
@@ -483,16 +504,11 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     self.discovery_info[CONF_AREAS] = detected_areas
 
-    def _get_connection_schema(self, user_input: Optional[Dict[str, Any]] = None, panel_type: str = None) -> vol.Schema:
-        """Get the connection input schema based on panel type."""
+    def _get_connection_schema(self, user_input: Optional[Dict[str, Any]] = None) -> vol.Schema:
+        """Get the connection input schema."""
         if user_input is None:
             user_input = {}
             
-        if panel_type is None:
-            panel_type = DEFAULT_PANEL_TYPE
-            
-        panel_config = PANEL_CONFIGS[panel_type]
-        
         return vol.Schema({
             vol.Required(
                 CONF_HOST, 
@@ -500,7 +516,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ): cv.string,
             vol.Optional(
                 CONF_PORT, 
-                default=user_input.get(CONF_PORT, panel_config["default_port"])
+                default=user_input.get(CONF_PORT, PANEL_CONFIG["default_port"])
             ): cv.port,
             vol.Optional(
                 CONF_USER_PIN, 
@@ -520,17 +536,15 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return ArrowheadAlarmOptionsFlowHandler(config_entry)
+        return ArrowheadECiOptionsFlowHandler(config_entry)
 
 
-class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle Arrowhead Alarm Panel options with zone configuration."""
+class ArrowheadECiOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle ECi options flow."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry):
         """Initialize options flow."""
         self.config_entry = config_entry
-        self.panel_type = config_entry.data.get(CONF_PANEL_TYPE, DEFAULT_PANEL_TYPE)
-        self.panel_config = PANEL_CONFIGS[self.panel_type]
 
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         """Manage the options."""
@@ -542,15 +556,20 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
             else:
                 return self.async_create_entry(title="", data=user_input)
 
-        # Get current zone configuration
-        current_max_zones = self.config_entry.data.get(CONF_MAX_ZONES, self.panel_config["max_zones"])
+        # Get current configuration
+        current_max_zones = self.config_entry.data.get(CONF_MAX_ZONES, 16)
         current_areas = self.config_entry.data.get(CONF_AREAS, [1])
         current_auto_detect = self.config_entry.data.get(CONF_AUTO_DETECT_ZONES, True)
-        
-        # Get current output configuration
         current_max_outputs = self.config_entry.data.get(CONF_MAX_OUTPUTS, DEFAULT_MAX_OUTPUTS)
+        
+        # Check if MODE 4 is supported
+        supports_mode4 = self.config_entry.data.get("supports_mode_4", False)
+        firmware_version = self.config_entry.data.get("firmware_version", "Unknown")
+        
+        mode_4_info = ""
+        if supports_mode4:
+            mode_4_info = f"\n\n🚀 **MODE 4 Features Active** (Firmware: {firmware_version})\n• Enhanced area commands\n• Keypad alarm functions\n• User tracking\n• Enhanced timing information"
 
-        # Base options schema
         base_options = {
             vol.Optional(
                 "scan_interval",
@@ -564,46 +583,36 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
                 "enable_debug_logging",
                 default=self.config_entry.options.get("enable_debug_logging", False)
             ): bool,
-        }
-
-        # Add ECi-specific zone options
-        if self.panel_type == PANEL_TYPE_ECI:
-            eci_options = {
-                vol.Optional(
-                    CONF_AUTO_DETECT_ZONES,
-                    default=current_auto_detect
-                ): bool,
-                vol.Optional(
-                    CONF_MAX_ZONES,
-                    default=current_max_zones
-                ): vol.All(vol.Coerce(int), vol.Range(min=8, max=248)),
-                vol.Optional(
-                    CONF_AREAS,
-                    default=",".join(map(str, current_areas)) if isinstance(current_areas, list) else str(current_areas)
-                ): cv.string,
-                vol.Optional(
-                    "configure_zone_names",
-                    default=False
-                ): bool,
-            }
-            base_options.update(eci_options)
-
-        # Add output configuration options for all panel types
-        output_options = {
+            vol.Optional(
+                CONF_AUTO_DETECT_ZONES,
+                default=current_auto_detect
+            ): bool,
+            vol.Optional(
+                CONF_MAX_ZONES,
+                default=current_max_zones
+            ): vol.All(vol.Coerce(int), vol.Range(min=8, max=248)),
+            vol.Optional(
+                CONF_AREAS,
+                default=",".join(map(str, current_areas)) if isinstance(current_areas, list) else str(current_areas)
+            ): cv.string,
             vol.Optional(
                 CONF_MAX_OUTPUTS,
                 default=current_max_outputs
-            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=self.panel_config["max_outputs"])),
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=PANEL_CONFIG["max_outputs"])),
+            vol.Optional(
+                "configure_zone_names",
+                default=False
+            ): bool,
         }
-        base_options.update(output_options)
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(base_options),
             description_placeholders={
-                "panel_name": self.panel_config["name"],
-                "max_zones": str(self.panel_config["max_zones"]) if self.panel_type == PANEL_TYPE_ESX else "248",
-                "max_outputs": str(self.panel_config["max_outputs"]),
+                "panel_name": PANEL_CONFIG["name"],
+                "max_zones": "248",
+                "max_outputs": str(PANEL_CONFIG["max_outputs"]),
+                "mode_4_info": mode_4_info,
             }
         )
 
@@ -646,28 +655,4 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
 
     def _get_default_zone_name(self, zone_id: int) -> str:
         """Get default zone name with zero-padding."""
-        # First check for common specific names for zones 1-16
-        common_names = {
-            1: "Front Door",
-            2: "Back Door", 
-            3: "Living Room",
-            4: "Kitchen",
-            5: "Bedroom",
-            6: "Garage Door",
-            7: "Basement",
-            8: "Upstairs",
-            9: "Office",
-            10: "Patio Door",
-            11: "Window 1",
-            12: "Window 2",
-            13: "Motion 1",
-            14: "Motion 2",
-            15: "Smoke Detector",
-            16: "Glass Break"
-        }
-        
-        # Use specific name if available for zones 1-16, otherwise use padded format
-        if zone_id in common_names:
-            return common_names[zone_id]
-        else:
-            return f"Zone {zone_id:03d}"
+        return f"Zone {zone_id:03d}"

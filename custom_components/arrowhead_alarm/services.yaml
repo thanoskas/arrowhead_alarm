@@ -1,14 +1,14 @@
-# Complete Arrowhead Alarm Panel Services with Proper Protocol Support
+# Complete Arrowhead ECi Alarm Panel Services with MODE 4 Support
 
 # ===== OUTPUT CONTROL SERVICES =====
 
 trigger_output:
   name: Trigger Output
-  description: Trigger an output on the alarm panel for a specified duration
+  description: Trigger an output on the ECi panel for a specified duration
   fields:
     output_number:
       name: Output Number
-      description: The output number to trigger (1-32 depending on panel)
+      description: The output number to trigger (1-32 depending on panel configuration)
       required: true
       selector:
         number:
@@ -32,7 +32,7 @@ turn_output_on:
   fields:
     output_number:
       name: Output Number
-      description: The output number to turn on (1-32 depending on panel)
+      description: The output number to turn on (1-32 depending on panel configuration)
       required: true
       selector:
         number:
@@ -46,7 +46,7 @@ turn_output_off:
   fields:
     output_number:
       name: Output Number
-      description: The output number to turn off (1-32 depending on panel)
+      description: The output number to turn off (1-32 depending on panel configuration)
       required: true
       selector:
         number:
@@ -62,7 +62,7 @@ bypass_zone:
   fields:
     zone_number:
       name: Zone Number
-      description: The zone number to bypass (1-248)
+      description: The zone number to bypass (1-248 for ECi panels)
       required: true
       selector:
         number:
@@ -76,7 +76,7 @@ unbypass_zone:
   fields:
     zone_number:
       name: Zone Number
-      description: The zone number to unbypass (1-248)
+      description: The zone number to unbypass (1-248 for ECi panels)
       required: true
       selector:
         number:
@@ -110,34 +110,8 @@ bulk_bypass:
 arm_away:
   name: Arm Away (All Areas)
   description: |
-    Arm the alarm system in away mode (all areas).
-    Uses protocol commands: ARMAWAY, ARMAWAY x, or ARMAWAY x pin
-  fields:
-    user_code:
-      name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
-      required: false
-      selector:
-        text:
-
-arm_stay:
-  name: Arm Stay (All Areas)
-  description: |
-    Arm the alarm system in stay/home mode (all areas).
-    Uses protocol commands: ARMSTAY, ARMSTAY x, or ARMSTAY x pin
-  fields:
-    user_code:
-      name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
-      required: false
-      selector:
-        text:
-
-arm_home:
-  name: Arm Home (All Areas)
-  description: |
-    Arm the alarm system in home mode (alias for stay mode, all areas).
-    Uses protocol commands: ARMSTAY, ARMSTAY x, or ARMSTAY x pin
+    Arm the ECi system in away mode (all areas).
+    Uses protocol commands optimized for the detected firmware version.
   fields:
     user_code:
       name: User Code (Optional)
@@ -149,8 +123,8 @@ arm_home:
 disarm:
   name: Disarm (All Areas)
   description: |
-    Disarm the alarm system (all areas).
-    Uses protocol command: DISARM x pin
+    Disarm the ECi system (all areas).
+    Uses DISARM x pin command with configured user credentials.
   fields:
     user_code:
       name: User Code (Optional)
@@ -159,20 +133,18 @@ disarm:
       selector:
         text:
 
-# ===== AREA-SPECIFIC ARM/DISARM SERVICES =====
+# ===== ENHANCED AREA-SPECIFIC ARM/DISARM SERVICES =====
 
 arm_away_area:
   name: Arm Away (Specific Area)
   description: |
-    Arm a specific area in away mode.
-    Protocol commands used:
-    • Mode 2: ARMAWAY x (x=area 1-32)
-    • Mode 4: ARMAREA x (x=area 1-32)  
-    • Fallback: ARMAWAY x pin (user-based)
+    Arm a specific area in away mode using optimal protocol commands.
+    MODE 4 panels (firmware 10.3.50+) use enhanced ARMAREA command.
+    Older panels use standard ARMAWAY commands.
   fields:
     area:
       name: Area Number
-      description: The area number to arm (1-32)
+      description: The area number to arm (1-32 for ECi panels)
       required: true
       selector:
         number:
@@ -185,19 +157,24 @@ arm_away_area:
       required: false
       selector:
         text:
+    use_mode_4:
+      name: Use MODE 4 Commands
+      description: Use MODE 4 enhanced commands if available (recommended)
+      required: false
+      default: true
+      selector:
+        boolean:
 
 arm_stay_area:
   name: Arm Stay (Specific Area)
   description: |
-    Arm a specific area in stay/home mode.
-    Protocol commands used:
-    • Mode 2: ARMSTAY x (x=area 1-32)
-    • Mode 4: STAYAREA x (x=area 1-32)
-    • Fallback: ARMSTAY x pin (user-based, Modes 1,3 only)
+    Arm a specific area in stay/home mode using optimal protocol commands.
+    MODE 4 panels (firmware 10.3.50+) use enhanced STAYAREA command.
+    Older panels use standard ARMSTAY commands.
   fields:
     area:
       name: Area Number
-      description: The area number to arm (1-32)
+      description: The area number to arm (1-32 for ECi panels)
       required: true
       selector:
         number:
@@ -210,19 +187,53 @@ arm_stay_area:
       required: false
       selector:
         text:
+    use_mode_4:
+      name: Use MODE 4 Commands
+      description: Use MODE 4 enhanced commands if available (recommended)
+      required: false
+      default: true
+      selector:
+        boolean:
 
 arm_home_area:
   name: Arm Home (Specific Area)
   description: |
     Arm a specific area in home mode (alias for stay mode).
-    Protocol commands used:
-    • Mode 2: ARMSTAY x (x=area 1-32)
-    • Mode 4: STAYAREA x (x=area 1-32)
-    • Fallback: ARMSTAY x pin (user-based, Modes 1,3 only)
+    MODE 4 panels (firmware 10.3.50+) use enhanced STAYAREA command.
+    Older panels use standard ARMSTAY commands.
   fields:
     area:
       name: Area Number
-      description: The area number to arm (1-32)
+      description: The area number to arm (1-32 for ECi panels)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+    use_mode_4:
+      name: Use MODE 4 Commands
+      description: Use MODE 4 enhanced commands if available (recommended)
+      required: false
+      default: true
+      selector:
+        boolean:
+
+disarm_area:
+  name: Disarm (Specific Area)
+  description: |
+    Disarm a specific area using DISARM command.
+    Works with all ECi firmware versions.
+  fields:
+    area:
+      name: Area Number
+      description: The area number to disarm (1-32 for ECi panels)
       required: true
       selector:
         number:
@@ -236,29 +247,28 @@ arm_home_area:
       selector:
         text:
 
-disarm_area:
-  name: Disarm (Specific Area)
+# ===== MODE 4 KEYPAD ALARM SERVICES =====
+
+trigger_keypad_alarm:
+  name: Trigger Keypad Alarm (MODE 4)
   description: |
-    Disarm a specific area.
-    Protocol commands used:
-    • Mode 1,3,4: DISARM x pin (x=user 1-2000)
-    • Mode 2: DISARM x pin (x=area 1-32)
+    Trigger keypad-based alarms (MODE 4 only - requires firmware 10.3.50+).
+    Available alarm types: panic, fire, medical.
+    These alarms are triggered as if pressed on a physical keypad.
   fields:
-    area:
-      name: Area Number
-      description: The area number to disarm (1-32)
+    alarm_type:
+      name: Alarm Type
+      description: Type of keypad alarm to trigger
       required: true
       selector:
-        number:
-          min: 1
-          max: 32
-          mode: box
-    user_code:
-      name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
-      required: false
-      selector:
-        text:
+        select:
+          options:
+            - label: "Panic Alarm"
+              value: "panic"
+            - label: "Fire Alarm"
+              value: "fire"
+            - label: "Medical Alarm"
+              value: "medical"
 
 # ===== STATUS AND INFORMATION SERVICES =====
 
@@ -268,7 +278,7 @@ get_area_status:
   fields:
     area:
       name: Area Number
-      description: The area number to check (1-32)
+      description: The area number to check (1-32 for ECi panels)
       required: true
       selector:
         number:
@@ -282,28 +292,29 @@ get_all_areas_status:
 
 refresh_status:
   name: Refresh Panel Status
-  description: Force an immediate status update from the alarm panel using STATUS command
+  description: Force an immediate status update from the ECi panel using STATUS command
 
 # ===== CUSTOM COMMAND SERVICES =====
 
 send_custom_command:
   name: Send Custom Command
   description: |
-    Send a custom command directly to the alarm panel (advanced users only).
-    Examples:
-    • ARMAWAY 2 (arm area 2)
+    Send a custom command directly to the ECi panel (advanced users only).
+    Examples for ECi panels:
+    • ARMAWAY 2 (arm area 2 away)
     • ARMSTAY 2 (stay arm area 2)
-    • ARMAREA 2 (Mode 4 arm area 2)
-    • STAYAREA 2 (Mode 4 stay arm area 2)
+    • ARMAREA 2 (MODE 4: arm area 2 away)
+    • STAYAREA 2 (MODE 4: stay arm area 2)
     • DISARM 1 123 (disarm as user 1 with PIN 123)
     • BYPASS 001 (bypass zone 1)
     • OUTPUTON 1 (turn on output 1)
+    • KPANICALARM (MODE 4: trigger keypad panic)
   fields:
     command:
       name: Command
       description: The raw command to send to the panel (see examples above)
       required: true
-      example: "ARMAWAY 2"
+      example: "ARMAREA 2"
       selector:
         text:
     expect_response:
@@ -334,9 +345,12 @@ bulk_arm_areas:
       selector:
         select:
           options:
-            - away
-            - stay
-            - home
+            - label: "Away Mode"
+              value: "away"
+            - label: "Stay Mode"
+              value: "stay"
+            - label: "Home Mode"
+              value: "home"
     user_code:
       name: User Code (Optional)
       description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
@@ -354,6 +368,13 @@ bulk_arm_areas:
           max: 10
           step: 0.5
           mode: box
+    use_mode_4:
+      name: Use MODE 4 Commands
+      description: Use MODE 4 enhanced commands if available (recommended)
+      required: false
+      default: true
+      selector:
+        boolean:
 
 bulk_disarm_areas:
   name: Bulk Disarm Areas
@@ -384,86 +405,11 @@ bulk_disarm_areas:
           step: 0.5
           mode: box
 
-# ===== ADVANCED PROTOCOL SERVICES =====
-
-arm_area_mode2:
-  name: Arm Area (Mode 2 Protocol)
-  description: |
-    Direct Mode 2 protocol area arming. 
-    Uses: ARMAWAY x or ARMSTAY x (where x = area 1-32)
-  fields:
-    area:
-      name: Area Number
-      description: Area to arm (1-32)
-      required: true
-      selector:
-        number:
-          min: 1
-          max: 32
-          mode: box
-    arm_type:
-      name: Arm Type
-      description: Type of arming
-      required: true
-      selector:
-        select:
-          options:
-            - away
-            - stay
-
-arm_area_mode4:
-  name: Arm Area (Mode 4 Protocol)
-  description: |
-    Direct Mode 4 protocol area arming.
-    Uses: ARMAREA x or STAYAREA x (where x = area 1-32)
-    Note: All areas must be active at P74E/P76E
-  fields:
-    area:
-      name: Area Number
-      description: Area to arm (1-32)
-      required: true
-      selector:
-        number:
-          min: 1
-          max: 32
-          mode: box
-    arm_type:
-      name: Arm Type
-      description: Type of arming
-      required: true
-      selector:
-        select:
-          options:
-            - away
-            - stay
-
-disarm_partition_mode2:
-  name: Disarm Partition (Mode 2 Protocol)
-  description: |
-    Direct Mode 2 protocol partition disarming.
-    Uses: DISARM x pin (where x = partition 1-32)
-  fields:
-    partition:
-      name: Partition Number
-      description: Partition to disarm (1-32)
-      required: true
-      selector:
-        number:
-          min: 1
-          max: 32
-          mode: box
-    pin:
-      name: PIN Code
-      description: PIN code for disarming
-      required: true
-      selector:
-        text:
-
 # ===== SYSTEM CONTROL SERVICES =====
 
 panel_reset:
   name: Panel Reset
-  description: Send a RESET command to the alarm panel (use with extreme caution)
+  description: Re-start the ECi panel using REBOOT command (use with extreme caution)
 
 panel_test:
   name: Panel Test
@@ -473,7 +419,7 @@ emergency_disarm:
   name: Emergency Disarm
   description: |
     Emergency disarm all areas using master code (use only in emergencies).
-    Uses: DISARM x pin command with master user code
+    Uses DISARM x pin command with master user code
   fields:
     master_code:
       name: Master Code
@@ -482,35 +428,19 @@ emergency_disarm:
       selector:
         text:
 
-# ===== PROTOCOL DETECTION SERVICES =====
+# ===== PROTOCOL DETECTION AND DIAGNOSTIC SERVICES =====
 
 detect_protocol_mode:
   name: Detect Protocol Mode
-  description: Attempt to detect which protocol mode the panel is using by testing commands
+  description: Attempt to detect which protocol mode the ECi panel is using
 
-test_area_commands:
-  name: Test Area Commands
-  description: Test different area command formats to determine what works
-  fields:
-    area:
-      name: Test Area
-      description: Area number to test with (ensure this area exists)
-      required: true
-      selector:
-        number:
-          min: 1
-          max: 32
-          mode: box
-    test_type:
-      name: Test Type
-      description: What type of commands to test
-      required: true
-      selector:
-        select:
-          options:
-            - arm_commands
-            - disarm_commands
-            - all_commands
+get_firmware_info:
+  name: Get Firmware Information
+  description: Get detailed firmware and protocol information from the ECi panel
+
+test_mode_4_features:
+  name: Test MODE 4 Features
+  description: Test if MODE 4 features are available and working (firmware 10.3.50+)
 
 # ===== ZONE MANAGEMENT SERVICES =====
 
@@ -520,7 +450,7 @@ force_zone_bypass:
   fields:
     zone_number:
       name: Zone Number
-      description: Zone to force bypass (1-248)
+      description: Zone to force bypass (1-248 for ECi panels)
       required: true
       selector:
         number:
@@ -534,7 +464,7 @@ get_zone_status:
   fields:
     zone_number:
       name: Zone Number
-      description: Zone to check (1-248)
+      description: Zone to check (1-248 for ECi panels)
       required: true
       selector:
         number:
@@ -550,7 +480,7 @@ send_status_command:
 
 ping_panel:
   name: Ping Panel
-  description: Test connectivity to the panel by sending a simple command
+  description: Test connectivity to the ECi panel by sending a simple command
 
 get_panel_info:
   name: Get Panel Information
@@ -564,7 +494,7 @@ pulse_output:
   fields:
     output_number:
       name: Output Number
-      description: Output to pulse (1-32)
+      description: Output to pulse (1-32 for ECi panels)
       required: true
       selector:
         number:
@@ -578,10 +508,58 @@ toggle_output:
   fields:
     output_number:
       name: Output Number
-      description: Output to toggle (1-32)
+      description: Output to toggle (1-32 for ECi panels)
       required: true
       selector:
         number:
           min: 1
           max: 32
           mode: box
+
+# ===== MODE 4 ENHANCED TIMING SERVICES =====
+
+get_entry_delay_status:
+  name: Get Entry Delay Status (MODE 4)
+  description: |
+    Get current entry delay status for all zones (MODE 4 only).
+    Shows zones currently in entry delay and time remaining.
+
+get_exit_delay_status:
+  name: Get Exit Delay Status (MODE 4)
+  description: |
+    Get current exit delay status for all areas (MODE 4 only).
+    Shows areas currently in exit delay and time remaining.
+
+# ===== MODE 4 USER TRACKING SERVICES =====
+
+get_user_activity:
+  name: Get User Activity (MODE 4)
+  description: |
+    Get information about which users armed/disarmed areas (MODE 4 only).
+    Provides user tracking for audit purposes. PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+arm_stay:
+  name: Arm Stay (All Areas)
+  description: |
+    Arm the ECi system in stay/home mode (all areas).
+    Uses protocol commands optimized for the detected firmware version.
+  fields:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+arm_home:
+  name: Arm Home (All Areas)
+  description: |
+    Arm the ECi system in home mode (alias for stay mode, all areas).
+    Uses protocol commands optimized for the detected firmware version.
+  fields:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user

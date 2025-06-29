@@ -1,4 +1,4 @@
-"""Data update coordinator for Arrowhead Alarm Panel with area support."""
+"""Data update coordinator for Arrowhead ECi Panel with MODE 4 support."""
 import asyncio
 import logging
 from datetime import timedelta
@@ -20,8 +20,8 @@ class ConnectionState(Enum):
     CONNECTED = "connected"
     RECONNECTING = "reconnecting"
 
-class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching data from the Arrowhead alarm panel with area support."""
+class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to manage fetching data from the Arrowhead ECi panel with MODE 4 support."""
 
     def __init__(self, hass: HomeAssistant, client, update_interval: int = 30):
         """Initialize the coordinator."""
@@ -70,7 +70,7 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def async_setup(self) -> None:
         """Set up the coordinator."""
-        _LOGGER.debug("Setting up ArrowheadDataUpdateCoordinator")
+        _LOGGER.debug("Setting up ArrowheadECiDataUpdateCoordinator")
         
         # Set initial state
         self._update_connection_state(ConnectionState.CONNECTING)
@@ -78,7 +78,7 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
         # Perform first refresh to validate connection
         try:
             await self.async_config_entry_first_refresh()
-            _LOGGER.info("ArrowheadDataUpdateCoordinator setup complete")
+            _LOGGER.info("ArrowheadECiDataUpdateCoordinator setup complete")
         except Exception as err:
             _LOGGER.error("Failed to setup coordinator: %s", err)
             # Don't raise here, let the setup continue and try again later
@@ -87,19 +87,19 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_config_entry_first_refresh(self) -> None:
         """Perform first refresh and ensure connection is established."""
         try:
-            _LOGGER.debug("Starting first refresh for coordinator")
+            _LOGGER.debug("Starting first refresh for ECi coordinator")
             
-            # Ensure client is connected - FIXED: is_connected is a property, not method
+            # Ensure client is connected
             if not self._client.is_connected:
                 _LOGGER.debug("Client not connected, attempting connection")
                 success = await self._client.connect()
                 if not success:
-                    raise UpdateFailed("Failed to connect to alarm panel during first refresh")
+                    raise UpdateFailed("Failed to connect to ECi panel during first refresh")
             
             # Get initial status and store it in self.data
             data = await self._async_update_data()
             
-            # FIXED: Explicitly set self.data if it's not set by parent class
+            # Explicitly set self.data if it's not set by parent class
             if not self.data and data:
                 self.data = data
             
@@ -108,8 +108,16 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.info("First refresh complete - Data keys: %s", list(self.data.keys()))
                 if "outputs" in self.data:
                     _LOGGER.info("Outputs in coordinator data: %s", list(self.data["outputs"].keys()))
+                
+                # Log MODE 4 specific information
+                if self.data.get("mode_4_features_active"):
+                    _LOGGER.info("MODE 4 features active - Enhanced capabilities available")
+                    if "zone_entry_delays" in self.data:
+                        _LOGGER.info("Entry delays tracked: %s", list(self.data["zone_entry_delays"].keys()))
+                    if "area_exit_delays" in self.data:
+                        _LOGGER.info("Exit delays tracked: %s", list(self.data["area_exit_delays"].keys()))
                 else:
-                    _LOGGER.warning("No outputs found in coordinator data")
+                    _LOGGER.info("Standard mode active")
             else:
                 _LOGGER.error("No data after first refresh - Data is: %s", self.data)
                 # Try calling the parent method to ensure proper initialization
@@ -120,24 +128,25 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"First refresh failed: {err}")
 
     async def _async_update_data(self) -> Dict[str, Any]:
-        """Fetch data from the alarm panel."""
+        """Fetch data from the ECi panel."""
         try:
-            # Ensure connection - FIXED: is_connected is a property, not method
+            # Ensure connection
             if not self._client.is_connected:
                 _LOGGER.debug("Client disconnected, attempting reconnection")
                 success = await self._client.connect()
                 if not success:
-                    raise UpdateFailed("Failed to reconnect to alarm panel")
+                    raise UpdateFailed("Failed to reconnect to ECi panel")
             
             # Get status from client
             status = await self._client.get_status()
             
             if status is None:
-                raise UpdateFailed("No data received from alarm panel")
+                raise UpdateFailed("No data received from ECi panel")
             
             # Debug log the status data
-            _LOGGER.debug("Status received from client: outputs=%s", 
-                         list(status.get("outputs", {}).keys()) if "outputs" in status else "None")
+            _LOGGER.debug("Status received from ECi client: outputs=%s, mode_4=%s", 
+                         list(status.get("outputs", {}).keys()) if "outputs" in status else "None",
+                         status.get("mode_4_features_active", False))
             
             # Update connection state
             self._update_connection_state(ConnectionState.CONNECTED)
@@ -147,11 +156,11 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:
             self._update_connection_state(ConnectionState.DISCONNECTED)
             _LOGGER.error("Failed to update data: %s", err)
-            raise UpdateFailed(f"Error communicating with alarm panel: {err}")
+            raise UpdateFailed(f"Error communicating with ECi panel: {err}")
 
     async def async_shutdown(self) -> None:
         """Shutdown the coordinator."""
-        _LOGGER.debug("Shutting down ArrowheadDataUpdateCoordinator")
+        _LOGGER.debug("Shutting down ArrowheadECiDataUpdateCoordinator")
         
         try:
             # Disconnect the client
@@ -162,12 +171,13 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
         finally:
             self._update_connection_state(ConnectionState.DISCONNECTED)
             
-        _LOGGER.info("ArrowheadDataUpdateCoordinator shutdown complete")
+        _LOGGER.info("ArrowheadECiDataUpdateCoordinator shutdown complete")
+
+    # ===== OUTPUT CONTROL METHODS =====
 
     async def async_trigger_output(self, output_id: int, duration: Optional[int] = None) -> bool:
         """Trigger an output for a specified duration."""
         try:
-            # FIXED: is_connected is a property, not method
             if not self._client.is_connected:
                 _LOGGER.warning("Cannot trigger output %s: client not connected", output_id)
                 return False
@@ -187,12 +197,11 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error triggering output %s: %s", output_id, err)
             return False
 
-    # ===== GENERAL ARM/DISARM METHODS (All Areas) =====
+    # ===== GENERAL ARM/DISARM METHODS =====
 
     async def async_arm_away(self, user_code: str = None) -> bool:
-        """Arm the system in away mode (all areas)."""
+        """Arm the system in away mode."""
         try:
-            # FIXED: is_connected is a property, not method
             if not self._client.is_connected:
                 _LOGGER.warning("Cannot arm system: client not connected")
                 return False
@@ -212,14 +221,12 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             return False
 
     async def async_arm_stay(self, user_code: str = None) -> bool:
-        """Arm the system in stay mode (all areas)."""
+        """Arm the system in stay mode."""
         try:
-            # FIXED: is_connected is a property, not method
             if not self._client.is_connected:
                 _LOGGER.warning("Cannot arm system: client not connected")
                 return False
                 
-            # FIXED: Call arm_stay() instead of arm_home()
             success = await self._client.arm_stay()
             
             if success:
@@ -234,15 +241,13 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error arming system in stay mode: %s", err)
             return False
 
-    # ADDED: Alias method for compatibility
     async def async_arm_home(self, user_code: str = None) -> bool:
         """Arm the system in home mode (alias for stay mode)."""
         return await self.async_arm_stay(user_code)
 
     async def async_disarm(self, user_code: str = None) -> bool:
-        """Disarm the system (all areas)."""
+        """Disarm the system."""
         try:
-            # FIXED: is_connected is a property, not method
             if not self._client.is_connected:
                 _LOGGER.warning("Cannot disarm system: client not connected")
                 return False
@@ -261,10 +266,10 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error disarming system: %s", err)
             return False
 
-    # ===== AREA-SPECIFIC ARM/DISARM METHODS =====
+    # ===== ENHANCED AREA-SPECIFIC ARM/DISARM METHODS =====
 
     async def async_arm_away_area(self, area: int, user_code: str = None) -> bool:
-        """Arm specific area in away mode."""
+        """Arm specific area in away mode with MODE 4 optimization."""
         try:
             if not self._client.is_connected:
                 _LOGGER.warning("Cannot arm area %d: client not connected", area)
@@ -272,11 +277,13 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             
             _LOGGER.info("Attempting to arm area %d in away mode", area)
             
-            # Check if client supports area-specific commands
-            if hasattr(self._client, 'arm_away_area'):
+            # Use MODE 4 enhanced command if available
+            if self._client.mode_4_features_active and hasattr(self._client, 'arm_away_area_mode4'):
+                success = await self._client.arm_away_area_mode4(area)
+            elif hasattr(self._client, 'arm_away_area'):
                 success = await self._client.arm_away_area(area)
             else:
-                _LOGGER.warning("Client doesn't support area-specific arm away, using general command")
+                _LOGGER.warning("Area-specific arm away not supported, using general command")
                 success = await self._client.arm_away()
             
             if success:
@@ -292,7 +299,7 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             return False
 
     async def async_arm_stay_area(self, area: int, user_code: str = None) -> bool:
-        """Arm specific area in stay mode."""
+        """Arm specific area in stay mode with MODE 4 optimization."""
         try:
             if not self._client.is_connected:
                 _LOGGER.warning("Cannot arm area %d: client not connected", area)
@@ -300,11 +307,13 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             
             _LOGGER.info("Attempting to arm area %d in stay mode", area)
             
-            # Check if client supports area-specific commands
-            if hasattr(self._client, 'arm_stay_area'):
+            # Use MODE 4 enhanced command if available
+            if self._client.mode_4_features_active and hasattr(self._client, 'arm_stay_area_mode4'):
+                success = await self._client.arm_stay_area_mode4(area)
+            elif hasattr(self._client, 'arm_stay_area'):
                 success = await self._client.arm_stay_area(area)
             else:
-                _LOGGER.warning("Client doesn't support area-specific arm stay, using general command")
+                _LOGGER.warning("Area-specific arm stay not supported, using general command")
                 success = await self._client.arm_stay()
             
             if success:
@@ -319,7 +328,6 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error arming area %d in stay mode: %s", area, err)
             return False
 
-    # ADDED: Alias method for area home arming
     async def async_arm_home_area(self, area: int, user_code: str = None) -> bool:
         """Arm specific area in home mode (alias for stay mode)."""
         return await self.async_arm_stay_area(area, user_code)
@@ -337,7 +345,7 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             if hasattr(self._client, 'disarm_area'):
                 success = await self._client.disarm_area(area)
             else:
-                _LOGGER.warning("Client doesn't support area-specific disarm, using general command")
+                _LOGGER.warning("Area-specific disarm not supported, using general command")
                 success = await self._client.disarm()
             
             if success:
@@ -357,7 +365,6 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_bypass_zone(self, zone_id: int) -> bool:
         """Bypass a zone."""
         try:
-            # FIXED: is_connected is a property, not method
             if not self._client.is_connected:
                 _LOGGER.warning("Cannot bypass zone %s: client not connected", zone_id)
                 return False
@@ -379,7 +386,6 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_unbypass_zone(self, zone_id: int) -> bool:
         """Remove bypass from a zone."""
         try:
-            # FIXED: is_connected is a property, not method
             if not self._client.is_connected:
                 _LOGGER.warning("Cannot unbypass zone %s: client not connected", zone_id)
                 return False
@@ -441,15 +447,15 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error in bulk zone %s: %s", action, err)
             return False
 
-    # ===== AREA STATUS METHODS =====
+    # ===== ENHANCED AREA STATUS METHODS =====
 
     def get_area_status(self, area: int) -> Dict[str, Any]:
-        """Get status information for a specific area."""
+        """Get status information for a specific area with MODE 4 enhancements."""
         if not self.data:
             return {}
         
-        # Get area armed key
-        area_letter = chr(64 + area).lower()  # 1=a, 2=b, etc.
+        # Get area armed key (area_a_armed for area 1, area_b_armed for area 2, etc.)
+        area_letter = chr(96 + area)  # 1=a, 2=b, etc.
         area_armed_key = f"area_{area_letter}_armed"
         
         # Get zones for this area
@@ -479,10 +485,29 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
         # Calculate ready to arm status for this area
         area_status["ready_to_arm"] = len(area_status["open_zones"]) == 0
         
+        # Add MODE 4 specific information if available
+        if self.data.get("mode_4_features_active", False):
+            # Area alarm status
+            area_alarm_key = f"area_{area_letter}_alarm"
+            area_status["area_alarm"] = self.data.get(area_alarm_key, False)
+            
+            # User who armed/disarmed
+            area_user_key = f"area_{area_letter}_armed_by_user"
+            area_status["armed_by_user"] = self.data.get(area_user_key)
+            
+            # Exit delay information
+            area_exit_delays = self.data.get("area_exit_delays", {})
+            area_status["exit_delay_remaining"] = area_exit_delays.get(area, 0)
+            
+            # Entry delay information for zones in this area
+            zone_entry_delays = self.data.get("zone_entry_delays", {})
+            area_entry_delays = {z: zone_entry_delays.get(z, 0) for z in area_zones if z in zone_entry_delays}
+            area_status["zone_entry_delays"] = area_entry_delays
+        
         return area_status
 
     def get_all_areas_status(self) -> Dict[int, Dict[str, Any]]:
-        """Get status for all detected areas."""
+        """Get status for all detected areas with MODE 4 enhancements."""
         if not self.data:
             return {}
         
@@ -500,8 +525,8 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
             if key.startswith("area_") and key.endswith("_armed"):
                 area_letter = key.split("_")[1]
                 if len(area_letter) == 1 and area_letter.isalpha():
-                    area_number = ord(area_letter.upper()) - ord('A') + 1
-                    if 1 <= area_number <= 8:  # Reasonable range
+                    area_number = ord(area_letter) - ord('a') + 1  # a=1, b=2, etc.
+                    if 1 <= area_number <= 32:  # ECi supports up to 32 areas
                         detected_areas.add(area_number)
         
         # Get status for each detected area
@@ -554,3 +579,68 @@ class ArrowheadDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Error sending custom command '%s': %s", command, err)
             return False
+
+    # ===== MODE 4 SPECIFIC METHODS =====
+
+    async def async_trigger_keypad_alarm(self, alarm_type: str) -> bool:
+        """Trigger keypad alarm (MODE 4 only)."""
+        try:
+            if not self._client.is_connected:
+                _LOGGER.warning("Cannot trigger keypad alarm: client not connected")
+                return False
+            
+            if not self._client.mode_4_features_active:
+                _LOGGER.warning("Keypad alarms require MODE 4")
+                return False
+            
+            if alarm_type == "panic":
+                success = await self._client.trigger_keypad_panic_alarm()
+            elif alarm_type == "fire":
+                success = await self._client.trigger_keypad_fire_alarm()
+            elif alarm_type == "medical":
+                success = await self._client.trigger_keypad_medical_alarm()
+            else:
+                _LOGGER.error("Invalid keypad alarm type: %s", alarm_type)
+                return False
+            
+            if success:
+                _LOGGER.info("Successfully triggered %s keypad alarm", alarm_type)
+                await self.async_request_refresh()
+            else:
+                _LOGGER.error("Failed to trigger %s keypad alarm", alarm_type)
+                
+            return success
+            
+        except Exception as err:
+            _LOGGER.error("Error triggering %s keypad alarm: %s", alarm_type, err)
+            return False
+
+    def get_mode_4_status(self) -> Dict[str, Any]:
+        """Get MODE 4 specific status information."""
+        if not self.data or not self.data.get("mode_4_features_active", False):
+            return {"mode_4_active": False}
+        
+        mode_4_status = {
+            "mode_4_active": True,
+            "protocol_mode": self.data.get("protocol_mode", 1),
+            "firmware_version": self.data.get("firmware_version", "Unknown"),
+            "keypad_alarms": {
+                "panic": self.data.get("keypad_panic_alarm", False),
+                "fire": self.data.get("keypad_fire_alarm", False),
+                "medical": self.data.get("keypad_medical_alarm", False),
+            },
+            "timing_info": {
+                "zone_entry_delays": self.data.get("zone_entry_delays", {}),
+                "area_exit_delays": self.data.get("area_exit_delays", {}),
+            },
+            "user_tracking": {}
+        }
+        
+        # Add user tracking information
+        for key, value in self.data.items():
+            if key.endswith("_armed_by_user") and value is not None:
+                area_letter = key.split("_")[1]
+                area_number = ord(area_letter) - ord('a') + 1
+                mode_4_status["user_tracking"][f"area_{area_number}"] = value
+        
+        return mode_4_status
