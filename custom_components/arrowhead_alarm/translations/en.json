@@ -2,97 +2,243 @@
   "config": {
     "step": {
       "user": {
-        "title": "Arrowhead Alarm Panel Setup",
-        "description": "Select your panel type to begin configuration",
-        "data": {
-          "panel_type": "Panel Type"
-        }
-      },
-      "connection": {
-        "title": "Connection Settings",
-        "description": "Enter the connection details for your {panel_name}",
+        "title": "🏠 Arrowhead ECi Alarm Panel Setup",
+        "description": "Connect to your Arrowhead ECi Series alarm panel.\n\n🔹 **ECi Series Features:**\n• Up to 248 zones with automatic detection\n• Up to 32 areas for complex installations\n• Up to 32 outputs for automation\n• MODE 4 enhanced features (firmware 10.3.50+)\n• Dynamic zone and area configuration\n\n💡 **MODE 4 Benefits:** Enhanced area commands, keypad alarms, user tracking, and precise timing information.",
         "data": {
           "host": "IP Address",
-          "port": "Port",
+          "port": "Port Number",
           "user_pin": "User PIN",
-          "username": "Username", 
+          "username": "Username",
           "password": "Password"
         },
         "data_description": {
-          "host": "The IP address of your alarm panel",
-          "port": "The TCP port (default: {default_port})",
+          "host": "The IP address where your ECi panel can be reached",
+          "port": "TCP port for communication (default: 9000)",
           "user_pin": "User number and PIN code separated by space (e.g., '1 123')",
-          "username": "Administrator username (typically 'admin')",
-          "password": "Administrator password (typically 'admin')"
+          "username": "Admin username (typically 'admin')",
+          "password": "Admin password (typically 'admin')"
         }
       },
       "zone_config": {
-        "title": "ECi Zone Configuration",
-        "description": "Configure zone detection for your ECi panel.\n\nDetected Configuration:\n• {detected_zones} zones found\n• Active areas: {detected_areas}\n• Maximum zone: {max_detected}",
+        "title": "🏡 Configure Zones for Your ECi Panel",
+        "description": "Set up zone monitoring for your ECi panel with automatic detection.\n\n📊 **Detection Results:**\n• Firmware: {firmware_status}\n• Protocol: {protocol_mode_info}\n• Zones detected: {detected_zones}\n• Areas found: {detected_areas}\n• Highest zone: {max_detected}\n• Status: {detection_status}\n\n💡 **Recommendation:** Enable auto-detection for best results. The ECi panel can automatically discover your zone and area configuration.",
         "data": {
-          "auto_detect_zones": "Auto-detect zones and areas",
-          "max_zones": "Maximum zones to monitor",
-          "areas": "Active areas",
-          "configure_zone_names": "Configure zone names"
+          "auto_detect_zones": "🔍 Auto-detect zones and areas",
+          "max_zones": "📊 Maximum zones to monitor",
+          "areas": "🏠 Active areas (comma-separated)",
+          "configure_zone_names": "🏷️ Customize zone names"
         },
         "data_description": {
-          "auto_detect_zones": "Automatically detect zones and areas from the panel's configuration",
-          "max_zones": "Override the maximum zone number to monitor (range: 8-248)",
-          "areas": "Specify active areas as comma-separated numbers (e.g., '1,2,3')",
-          "configure_zone_names": "Set custom names for your zones (e.g., 'Front Door', 'Kitchen')"
+          "auto_detect_zones": "Automatically detect active zones and areas from your ECi panel's configuration using P4076E1 and P4075Ex queries",
+          "max_zones": "Override the maximum zone number to monitor (8-248 zones for ECi panels)",
+          "areas": "Specify which areas are active (leave empty for auto-detection). ECi panels support up to 32 areas.",
+          "configure_zone_names": "Set custom names for your zones instead of 'Zone 001', 'Zone 002', etc."
         }
       },
       "zone_names": {
-        "title": "Zone Names Configuration", 
-        "description": "Customize names for your zones (showing first {zone_count} zones)\nYou can change these later in the integration options.",
+        "title": "🏷️ Name Your Zones",
+        "description": "{description}\n\n💡 **Tip:** Use descriptive names like 'Front Door', 'Kitchen Window', 'Garage Motion' for easier identification in Home Assistant.\n\n📱 **Note:** Zone names can be changed later in Settings → Integrations → Arrowhead ECi → Configure.",
         "data": {
-          "skip_zone_naming": "Skip zone naming (use default names)"
+          "skip_zone_naming": "⏭️ Skip naming (use default Zone 001, Zone 002, etc.)"
+        }
+      },
+      "output_config": {
+        "title": "⚡ Configure Outputs for Your ECi Panel",
+        "description": "Set how many outputs to manage with Home Assistant.\n\n📊 **ECi Panel Specifications:**\n• Standard outputs: 4 (main panel)\n• Maximum supported: 32 (with expanders)\n• Compatible with: Lights, sirens, door locks, garage doors, and other relay-controlled devices\n\n{mode_4_features}\n\n💡 **Note:** You can control any device connected to your ECi panel's output terminals through Home Assistant.",
+        "data": {
+          "max_outputs": "⚡ Number of outputs"
+        },
+        "data_description": {
+          "max_outputs": "How many outputs to create switches for (1-32 for ECi panels)"
         }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to the alarm panel. Check IP address and network connectivity.",
-      "connection_refused": "Connection refused by the alarm panel. Check if the panel is online and port is correct.",
-      "timeout": "Connection timeout. The panel may be unreachable or busy.",
+      "cannot_connect": "Failed to connect to the ECi panel. Check IP address and network connectivity.",
+      "connection_refused": "Connection refused by the ECi panel. Check if the panel is online and port is correct.",
+      "timeout": "Connection timeout. The ECi panel may be unreachable or busy.",
       "auth_failed": "Authentication failed. Check username, password, and user PIN.",
-      "invalid_response": "Invalid response from alarm panel. The panel may be incompatible.",
-      "client_error": "Communication error with the alarm panel.",
+      "invalid_response": "Invalid response from ECi panel. The panel may be incompatible or experiencing issues.",
+      "client_error": "Communication error with the ECi panel.",
       "unknown": "An unknown error occurred during setup."
     },
     "abort": {
-      "already_configured": "This alarm panel is already configured.",
-      "single_instance_allowed": "Only one Arrowhead alarm panel can be configured."
+      "already_configured": "This ECi panel is already configured.",
+      "single_instance_allowed": "Only one Arrowhead ECi panel can be configured per Home Assistant instance."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Arrowhead Alarm Panel Options",
-        "description": "Adjust settings for your {panel_name}",
+        "title": "Arrowhead ECi Panel Options",
+        "description": "Adjust settings for your ECi Series panel.\n\n{mode_4_info}",
         "data": {
           "scan_interval": "Update interval (seconds)",
           "timeout": "Communication timeout (seconds)",
           "enable_debug_logging": "Enable debug logging",
           "auto_detect_zones": "Auto-detect zones and areas",
-          "max_zones": "Maximum zones to monitor", 
+          "max_zones": "Maximum zones to monitor",
           "areas": "Active areas",
+          "max_outputs": "Number of outputs",
           "configure_zone_names": "Configure zone names"
         },
         "data_description": {
-          "scan_interval": "How often to poll the panel for status updates (10-300 seconds)",
+          "scan_interval": "How often to poll the ECi panel for status updates (10-300 seconds)",
           "timeout": "Maximum time to wait for panel responses (5-60 seconds)",
           "enable_debug_logging": "Enable detailed logging for troubleshooting issues",
-          "auto_detect_zones": "Automatically detect zones and areas from panel configuration",
-          "max_zones": "Maximum zone number to monitor (8-{max_zones} for this panel type)",
-          "areas": "Active areas as comma-separated numbers (1-32)",
+          "auto_detect_zones": "Automatically detect zones and areas from ECi panel configuration using P4076E1/P4075Ex queries",
+          "max_zones": "Maximum zone number to monitor (8-248 for ECi panels)",
+          "areas": "Active areas as comma-separated numbers (1-32 for ECi panels)",
+          "max_outputs": "How many outputs to create switches for (1-32 for ECi panels)",
           "configure_zone_names": "Set custom names for your zones"
         }
       },
       "zone_names": {
         "title": "Zone Names Configuration",
-        "description": "Set custom names for your zones (showing {zone_count} zones)",
+        "description": "Set custom names for your zones (showing {zone_count} zones)\n\n💡 **Best Practices:**\n• Use location-based names (e.g., 'Front Door', 'Kitchen Window')\n• Include sensor type if helpful (e.g., 'Garage Motion', 'Basement Glass Break')\n• Keep names concise but descriptive\n• Use consistent naming conventions",
         "data": {}
       }
+    }
+  },
+  "entity": {
+    "alarm_control_panel": {
+      "arrowhead_eci": {
+        "name": "ECi Alarm Panel",
+        "state": {
+          "armed_away": "Armed Away",
+          "armed_home": "Armed Home",
+          "armed_night": "Armed Night",
+          "armed_vacation": "Armed Vacation",
+          "arming": "Arming",
+          "disarmed": "Disarmed",
+          "pending": "Entry Delay",
+          "triggered": "Triggered"
+        }
+      }
+    },
+    "binary_sensor": {
+      "zone_state": {
+        "name": "{zone_name}",
+        "state": {
+          "on": "Open",
+          "off": "Closed"
+        }
+      },
+      "zone_alarm": {
+        "name": "{zone_name} Alarm",
+        "state": {
+          "on": "Alarm",
+          "off": "Normal"
+        }
+      },
+      "zone_trouble": {
+        "name": "{zone_name} Trouble",
+        "state": {
+          "on": "Trouble",
+          "off": "Normal"
+        }
+      },
+      "zone_bypassed": {
+        "name": "{zone_name} Bypassed",
+        "state": {
+          "on": "Bypassed",
+          "off": "Active"
+        }
+      },
+      "system_status": {
+        "name": "ECi {status_name}",
+        "state": {
+          "on": "Problem",
+          "off": "OK"
+        }
+      }
+    },
+    "switch": {
+      "output": {
+        "name": "Output {output_number}",
+        "state": {
+          "on": "On",
+          "off": "Off"
+        }
+      }
+    },
+    "button": {
+      "zone_bypass": {
+        "name": "{zone_name} Bypass",
+        "state": {
+          "pressed": "Bypass Toggled"
+        }
+      }
+    }
+  },
+  "services": {
+    "arm_away": {
+      "name": "Arm Away",
+      "description": "Arm the ECi system in away mode"
+    },
+    "arm_stay": {
+      "name": "Arm Stay", 
+      "description": "Arm the ECi system in stay mode"
+    },
+    "arm_home": {
+      "name": "Arm Home",
+      "description": "Arm the ECi system in home mode"
+    },
+    "disarm": {
+      "name": "Disarm",
+      "description": "Disarm the ECi system"
+    },
+    "arm_away_area": {
+      "name": "Arm Away (Area)",
+      "description": "Arm specific area in away mode"
+    },
+    "arm_stay_area": {
+      "name": "Arm Stay (Area)",
+      "description": "Arm specific area in stay mode"
+    },
+    "arm_home_area": {
+      "name": "Arm Home (Area)",
+      "description": "Arm specific area in home mode"
+    },
+    "disarm_area": {
+      "name": "Disarm (Area)",
+      "description": "Disarm specific area"
+    },
+    "trigger_keypad_alarm": {
+      "name": "Trigger Keypad Alarm",
+      "description": "Trigger keypad-based alarm (MODE 4 only)"
+    },
+    "bypass_zone": {
+      "name": "Bypass Zone",
+      "description": "Bypass a zone"
+    },
+    "unbypass_zone": {
+      "name": "Remove Zone Bypass",
+      "description": "Remove bypass from a zone"
+    },
+    "trigger_output": {
+      "name": "Trigger Output",
+      "description": "Trigger an output"
+    },
+    "turn_output_on": {
+      "name": "Turn Output On",
+      "description": "Turn an output on"
+    },
+    "turn_output_off": {
+      "name": "Turn Output Off", 
+      "description": "Turn an output off"
+    },
+    "send_custom_command": {
+      "name": "Send Custom Command",
+      "description": "Send a custom command to the ECi panel"
+    },
+    "get_area_status": {
+      "name": "Get Area Status",
+      "description": "Get status for a specific area"
+    },
+    "refresh_status": {
+      "name": "Refresh Status",
+      "description": "Force status refresh from ECi panel"
     }
   }
 }
