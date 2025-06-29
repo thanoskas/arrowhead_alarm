@@ -1,3 +1,7 @@
+# Complete Arrowhead Alarm Panel Services with Proper Protocol Support
+
+# ===== OUTPUT CONTROL SERVICES =====
+
 trigger_output:
   name: Trigger Output
   description: Trigger an output on the alarm panel for a specified duration
@@ -50,13 +54,15 @@ turn_output_off:
           max: 32
           mode: box
 
+# ===== ZONE BYPASS SERVICES =====
+
 bypass_zone:
   name: Bypass Zone
-  description: Bypass a zone (exclude from arming)
+  description: Bypass a zone (exclude from arming). Uses BYPASS xxx format.
   fields:
     zone_number:
       name: Zone Number
-      description: The zone number to bypass
+      description: The zone number to bypass (1-248)
       required: true
       selector:
         number:
@@ -66,11 +72,11 @@ bypass_zone:
 
 unbypass_zone:
   name: Remove Zone Bypass
-  description: Remove bypass from a zone (include in arming)
+  description: Remove bypass from a zone (include in arming). Uses UNBYPASS xxx format.
   fields:
     zone_number:
       name: Zone Number
-      description: The zone number to unbypass
+      description: The zone number to unbypass (1-248)
       required: true
       selector:
         number:
@@ -84,8 +90,9 @@ bulk_bypass:
   fields:
     zones:
       name: Zone Numbers
-      description: List of zone numbers to operate on
+      description: List of zone numbers to operate on (e.g., [1, 2, 3, 5])
       required: true
+      example: "[1, 2, 3, 5]"
       selector:
         object:
     action:
@@ -98,14 +105,483 @@ bulk_bypass:
             - bypass
             - unbypass
 
+# ===== GENERAL ARM/DISARM SERVICES (All Areas) =====
+
 arm_away:
-  name: Arm Away
-  description: Arm the alarm system in away mode
+  name: Arm Away (All Areas)
+  description: |
+    Arm the alarm system in away mode (all areas).
+    Uses protocol commands: ARMAWAY, ARMAWAY x, or ARMAWAY x pin
+  fields:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
 
 arm_stay:
-  name: Arm Stay
-  description: Arm the alarm system in stay/home mode
+  name: Arm Stay (All Areas)
+  description: |
+    Arm the alarm system in stay/home mode (all areas).
+    Uses protocol commands: ARMSTAY, ARMSTAY x, or ARMSTAY x pin
+  fields:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+arm_home:
+  name: Arm Home (All Areas)
+  description: |
+    Arm the alarm system in home mode (alias for stay mode, all areas).
+    Uses protocol commands: ARMSTAY, ARMSTAY x, or ARMSTAY x pin
+  fields:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
 
 disarm:
-  name: Disarm
-  description: Disarm the alarm system
+  name: Disarm (All Areas)
+  description: |
+    Disarm the alarm system (all areas).
+    Uses protocol command: DISARM x pin
+  fields:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+# ===== AREA-SPECIFIC ARM/DISARM SERVICES =====
+
+arm_away_area:
+  name: Arm Away (Specific Area)
+  description: |
+    Arm a specific area in away mode.
+    Protocol commands used:
+    • Mode 2: ARMAWAY x (x=area 1-32)
+    • Mode 4: ARMAREA x (x=area 1-32)  
+    • Fallback: ARMAWAY x pin (user-based)
+  fields:
+    area:
+      name: Area Number
+      description: The area number to arm (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+arm_stay_area:
+  name: Arm Stay (Specific Area)
+  description: |
+    Arm a specific area in stay/home mode.
+    Protocol commands used:
+    • Mode 2: ARMSTAY x (x=area 1-32)
+    • Mode 4: STAYAREA x (x=area 1-32)
+    • Fallback: ARMSTAY x pin (user-based, Modes 1,3 only)
+  fields:
+    area:
+      name: Area Number
+      description: The area number to arm (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+arm_home_area:
+  name: Arm Home (Specific Area)
+  description: |
+    Arm a specific area in home mode (alias for stay mode).
+    Protocol commands used:
+    • Mode 2: ARMSTAY x (x=area 1-32)
+    • Mode 4: STAYAREA x (x=area 1-32)
+    • Fallback: ARMSTAY x pin (user-based, Modes 1,3 only)
+  fields:
+    area:
+      name: Area Number
+      description: The area number to arm (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+disarm_area:
+  name: Disarm (Specific Area)
+  description: |
+    Disarm a specific area.
+    Protocol commands used:
+    • Mode 1,3,4: DISARM x pin (x=user 1-2000)
+    • Mode 2: DISARM x pin (x=area 1-32)
+  fields:
+    area:
+      name: Area Number
+      description: The area number to disarm (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+# ===== STATUS AND INFORMATION SERVICES =====
+
+get_area_status:
+  name: Get Area Status
+  description: Get detailed status information for a specific area and fire an event
+  fields:
+    area:
+      name: Area Number
+      description: The area number to check (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+
+get_all_areas_status:
+  name: Get All Areas Status
+  description: Get status information for all detected areas and fire an event
+
+refresh_status:
+  name: Refresh Panel Status
+  description: Force an immediate status update from the alarm panel using STATUS command
+
+# ===== CUSTOM COMMAND SERVICES =====
+
+send_custom_command:
+  name: Send Custom Command
+  description: |
+    Send a custom command directly to the alarm panel (advanced users only).
+    Examples:
+    • ARMAWAY 2 (arm area 2)
+    • ARMSTAY 2 (stay arm area 2)
+    • ARMAREA 2 (Mode 4 arm area 2)
+    • STAYAREA 2 (Mode 4 stay arm area 2)
+    • DISARM 1 123 (disarm as user 1 with PIN 123)
+    • BYPASS 001 (bypass zone 1)
+    • OUTPUTON 1 (turn on output 1)
+  fields:
+    command:
+      name: Command
+      description: The raw command to send to the panel (see examples above)
+      required: true
+      example: "ARMAWAY 2"
+      selector:
+        text:
+    expect_response:
+      name: Expect Response
+      description: Whether to wait for and return a response from the panel
+      required: false
+      default: false
+      selector:
+        boolean:
+
+# ===== BULK OPERATIONS SERVICES =====
+
+bulk_arm_areas:
+  name: Bulk Arm Areas
+  description: Arm multiple areas at once in the same mode with delay between commands
+  fields:
+    areas:
+      name: Area Numbers
+      description: List of area numbers to arm (e.g., [1, 2, 3])
+      required: true
+      example: "[1, 2, 3]"
+      selector:
+        object:
+    mode:
+      name: Arm Mode
+      description: How to arm the selected areas
+      required: true
+      selector:
+        select:
+          options:
+            - away
+            - stay
+            - home
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+    delay:
+      name: Delay Between Commands (seconds)
+      description: Delay between each area command to avoid overwhelming the panel
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 0.5
+          max: 10
+          step: 0.5
+          mode: box
+
+bulk_disarm_areas:
+  name: Bulk Disarm Areas
+  description: Disarm multiple areas at once with delay between commands
+  fields:
+    areas:
+      name: Area Numbers
+      description: List of area numbers to disarm (e.g., [1, 2, 3])
+      required: true
+      example: "[1, 2, 3]"
+      selector:
+        object:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+    delay:
+      name: Delay Between Commands (seconds)
+      description: Delay between each area command to avoid overwhelming the panel
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 0.5
+          max: 10
+          step: 0.5
+          mode: box
+
+# ===== ADVANCED PROTOCOL SERVICES =====
+
+arm_area_mode2:
+  name: Arm Area (Mode 2 Protocol)
+  description: |
+    Direct Mode 2 protocol area arming. 
+    Uses: ARMAWAY x or ARMSTAY x (where x = area 1-32)
+  fields:
+    area:
+      name: Area Number
+      description: Area to arm (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    arm_type:
+      name: Arm Type
+      description: Type of arming
+      required: true
+      selector:
+        select:
+          options:
+            - away
+            - stay
+
+arm_area_mode4:
+  name: Arm Area (Mode 4 Protocol)
+  description: |
+    Direct Mode 4 protocol area arming.
+    Uses: ARMAREA x or STAYAREA x (where x = area 1-32)
+    Note: All areas must be active at P74E/P76E
+  fields:
+    area:
+      name: Area Number
+      description: Area to arm (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    arm_type:
+      name: Arm Type
+      description: Type of arming
+      required: true
+      selector:
+        select:
+          options:
+            - away
+            - stay
+
+disarm_partition_mode2:
+  name: Disarm Partition (Mode 2 Protocol)
+  description: |
+    Direct Mode 2 protocol partition disarming.
+    Uses: DISARM x pin (where x = partition 1-32)
+  fields:
+    partition:
+      name: Partition Number
+      description: Partition to disarm (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    pin:
+      name: PIN Code
+      description: PIN code for disarming
+      required: true
+      selector:
+        text:
+
+# ===== SYSTEM CONTROL SERVICES =====
+
+panel_reset:
+  name: Panel Reset
+  description: Send a RESET command to the alarm panel (use with extreme caution)
+
+panel_test:
+  name: Panel Test
+  description: Initiate a panel self-test sequence using TEST command
+
+emergency_disarm:
+  name: Emergency Disarm
+  description: |
+    Emergency disarm all areas using master code (use only in emergencies).
+    Uses: DISARM x pin command with master user code
+  fields:
+    master_code:
+      name: Master Code
+      description: Master user code for emergency disarm (format: 'user pin', e.g., '99 999999')
+      required: true
+      selector:
+        text:
+
+# ===== PROTOCOL DETECTION SERVICES =====
+
+detect_protocol_mode:
+  name: Detect Protocol Mode
+  description: Attempt to detect which protocol mode the panel is using by testing commands
+
+test_area_commands:
+  name: Test Area Commands
+  description: Test different area command formats to determine what works
+  fields:
+    area:
+      name: Test Area
+      description: Area number to test with (ensure this area exists)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    test_type:
+      name: Test Type
+      description: What type of commands to test
+      required: true
+      selector:
+        select:
+          options:
+            - arm_commands
+            - disarm_commands
+            - all_commands
+
+# ===== ZONE MANAGEMENT SERVICES =====
+
+force_zone_bypass:
+  name: Force Zone Bypass
+  description: Force bypass a zone even if system is armed (if supported by panel)
+  fields:
+    zone_number:
+      name: Zone Number
+      description: Zone to force bypass (1-248)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 248
+          mode: box
+
+get_zone_status:
+  name: Get Zone Status
+  description: Get detailed status for a specific zone and fire an event
+  fields:
+    zone_number:
+      name: Zone Number
+      description: Zone to check (1-248)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 248
+          mode: box
+
+# ===== DIAGNOSTIC SERVICES =====
+
+send_status_command:
+  name: Send STATUS Command
+  description: Send the STATUS command and log all responses for debugging
+
+ping_panel:
+  name: Ping Panel
+  description: Test connectivity to the panel by sending a simple command
+
+get_panel_info:
+  name: Get Panel Information
+  description: Attempt to retrieve panel version, model, and capability information
+
+# ===== OUTPUT MANAGEMENT SERVICES =====
+
+pulse_output:
+  name: Pulse Output
+  description: Pulse an output for a very short duration (momentary activation)
+  fields:
+    output_number:
+      name: Output Number
+      description: Output to pulse (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+
+toggle_output:
+  name: Toggle Output
+  description: Toggle an output state (on to off, or off to on)
+  fields:
+    output_number:
+      name: Output Number
+      description: Output to toggle (1-32)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box

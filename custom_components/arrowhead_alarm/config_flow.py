@@ -128,11 +128,33 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         detected_zones = 0
         detected_areas = []
         max_detected = 16
+        detection_status = "No detection attempted"
         
         if self._detected_config:
             detected_zones = self._detected_config.get("total_zones", 0)
-            detected_areas = list(self._detected_config.get("active_areas", []))
+            # FIXED: Handle both set and list formats for active_areas
+            active_areas = self._detected_config.get("active_areas", set())
+            if isinstance(active_areas, set):
+                detected_areas = sorted(list(active_areas))
+            elif isinstance(active_areas, list):
+                detected_areas = sorted(active_areas)
+            else:
+                detected_areas = [1]  # Fallback
             max_detected = self._detected_config.get("max_zone", 16)
+            detection_method = self._detected_config.get("detection_method", "unknown")
+            
+            _LOGGER.info("Zone config step - detected: zones=%d, areas=%s, max=%d, method=%s", 
+                        detected_zones, detected_areas, max_detected, detection_method)
+            
+            # Set status message based on detection results
+            if detection_method == "active_areas_query":
+                detection_status = f"✅ Successfully detected via panel query"
+            elif detection_method == "status_parsing":
+                detection_status = f"⚠️ Detected via status parsing"
+            elif detection_method in ["fallback", "error_fallback"]:
+                detection_status = f"❌ Auto-detection failed, using defaults"
+            else:
+                detection_status = f"❓ Detection method: {detection_method}"
 
         return self.async_show_form(
             step_id="zone_config",
@@ -157,9 +179,10 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
             description_placeholders={
                 "panel_name": panel_config["name"],
-                "detected_zones": str(detected_zones) if detected_zones > 0 else "None detected",
-                "detected_areas": ",".join(map(str, detected_areas)) if detected_areas else "None detected",
+                "detected_zones": str(detected_zones) if detected_zones > 0 else "Auto-detection failed",
+                "detected_areas": ",".join(map(str, detected_areas)) if detected_areas else "Auto-detection failed", 
                 "max_detected": str(max_detected),
+                "detection_status": detection_status,
             }
         )
 
@@ -289,16 +312,36 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             detected_config = None
             if panel_type == PANEL_TYPE_ECI:
                 try:
+                    _LOGGER.info("=== ECi DETECTION START ===")
+                    _LOGGER.info("Attempting ECi zone detection during connection test")
+                    
+                    # Test the specific command first
+                    test_response = await client._send_command("P4076E1?", expect_response=True)
+                    _LOGGER.info("Manual test of P4076E1?: %r", test_response)
+                    
                     detected_config = await self._detect_eci_configuration(client)
+                    _LOGGER.info("ECi detection completed: areas=%s, zones=%d, method=%s", 
+                               detected_config.get("active_areas"), 
+                               detected_config.get("total_zones", 0),
+                               detected_config.get("detection_method", "unknown"))
+                    _LOGGER.info("=== ECi DETECTION END ===")
+                    
                 except Exception as err:
-                    _LOGGER.warning("ECi zone detection failed: %s", err)
+                    _LOGGER.error("ECi zone detection failed: %s", err)
+                    import traceback
+                    _LOGGER.error("Full traceback: %s", traceback.format_exc())
+                    
+                    # FIXED: Use sets instead of lists, ensure proper format
                     detected_config = {
                         "total_zones": 16,
                         "max_zone": 16,
-                        "active_areas": [1],
-                        "detection_method": "fallback"
+                        "active_areas": {1},  # Changed from [1] to {1}
+                        "detected_zones": set(range(1, 17)),  # Add detected_zones
+                        "zones_in_areas": {1: set(range(1, 17))},  # Add zones_in_areas
+                        "detection_method": "fallback_error",
+                        "error": str(err)
                     }
-            
+        
             panel_name = PANEL_TYPES.get(panel_type, panel_type)
             
             result = {
@@ -332,10 +375,17 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _detect_eci_configuration(self, client) -> Dict[str, Any]:
         """Detect ECi panel configuration during setup."""
         try:
+            _LOGGER.info("Starting ECi configuration detection")
             from .eci_zone_detection import ECiZoneManager
             
             zone_manager = ECiZoneManager(client)
             config = await zone_manager.detect_panel_configuration()
+            
+            _LOGGER.info("ECi detection results: %s", {
+                "areas": list(config.get("active_areas", set())),
+                "zones": len(config.get("detected_zones", set())),
+                "method": config.get("detection_method", "unknown")
+            })
             
             return config
             
@@ -344,7 +394,9 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return {
                 "total_zones": 16,
                 "max_zone": 16,
-                "active_areas": [1],
+                "active_areas": {1},  # Ensure set format
+                "detected_zones": set(range(1, 17)),
+                "zones_in_areas": {1: set(range(1, 17))},
                 "detection_method": "error_fallback"
             }
 
@@ -403,7 +455,13 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         else:
             if self._detected_config:
                 detected_max = self._detected_config.get("max_zone", 16)
-                detected_areas = list(self._detected_config.get("active_areas", [1]))
+                detected_areas_set = self._detected_config.get("active_areas", {1})
+                
+                # Convert set to list for storage
+                if isinstance(detected_areas_set, set):
+                    detected_areas = list(detected_areas_set)
+                else:
+                    detected_areas = list(detected_areas_set) if detected_areas_set else [1]
                 
                 user_max = self.discovery_info.get(CONF_MAX_ZONES)
                 user_areas_str = self.discovery_info.get(CONF_AREAS)

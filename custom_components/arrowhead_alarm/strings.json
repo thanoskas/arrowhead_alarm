@@ -28,7 +28,7 @@
       },
       "zone_config": {
         "title": "🏡 Configure Zones for Your {panel_name}",
-        "description": "Set up zone monitoring for your ECi panel.\n\n📊 **Detection Results:**\n• Zones detected: {detected_zones}\n• Areas found: {detected_areas}\n• Highest zone: {max_detected}\n\n💡 **Recommendation:** Enable auto-detection for best results.",
+        "description": "Set up zone monitoring for your ECi panel.\n\n📊 **Detection Results:**\n• Zones detected: {detected_zones}\n• Areas found: {detected_areas}\n• Highest zone: {max_detected}\n• Status: {detection_status}\n\n💡 **Recommendation:** Enable auto-detection for best results.",
         "data": {
           "auto_detect_zones": "🔍 Auto-detect zones and areas",
           "max_zones": "📊 Maximum zones to monitor",
@@ -57,4 +57,54 @@
         },
         "data_description": {
           "max_outputs": "How many outputs to create switches for (1-{max_outputs})"
-        
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the alarm panel. Check IP address and network connectivity.",
+      "connection_refused": "Connection refused by the alarm panel. Check if the panel is online and port is correct.",
+      "timeout": "Connection timeout. The panel may be unreachable or busy.",
+      "auth_failed": "Authentication failed. Check username, password, and user PIN.",
+      "invalid_response": "Invalid response from alarm panel. The panel may be incompatible.",
+      "client_error": "Communication error with the alarm panel.",
+      "unknown": "An unknown error occurred during setup."
+    },
+    "abort": {
+      "already_configured": "This alarm panel is already configured.",
+      "single_instance_allowed": "Only one Arrowhead alarm panel can be configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Arrowhead Alarm Panel Options",
+        "description": "Adjust settings for your {panel_name}",
+        "data": {
+          "scan_interval": "Update interval (seconds)",
+          "timeout": "Communication timeout (seconds)",
+          "enable_debug_logging": "Enable debug logging",
+          "auto_detect_zones": "Auto-detect zones and areas",
+          "max_zones": "Maximum zones to monitor",
+          "areas": "Active areas",
+          "max_outputs": "Number of outputs",
+          "configure_zone_names": "Configure zone names"
+        },
+        "data_description": {
+          "scan_interval": "How often to poll the panel for status updates (10-300 seconds)",
+          "timeout": "Maximum time to wait for panel responses (5-60 seconds)",
+          "enable_debug_logging": "Enable detailed logging for troubleshooting issues",
+          "auto_detect_zones": "Automatically detect zones and areas from panel configuration",
+          "max_zones": "Maximum zone number to monitor (8-{max_zones} for this panel type)",
+          "areas": "Active areas as comma-separated numbers (1-32)",
+          "max_outputs": "How many outputs to create switches for (1-{max_outputs})",
+          "configure_zone_names": "Set custom names for your zones"
+        }
+      },
+      "zone_names": {
+        "title": "Zone Names Configuration",
+        "description": "Set custom names for your zones (showing {zone_count} zones)",
+        "data": {}
+      }
+    }
+  }
+}

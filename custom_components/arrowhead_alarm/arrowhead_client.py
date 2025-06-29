@@ -1,4 +1,4 @@
-"""Enhanced Arrowhead Alarm Panel client with version detection and protocol adaptation."""
+"""Enhanced Arrowhead Alarm Panel client with version detection, protocol adaptation, and area support."""
 import asyncio
 import logging
 import re
@@ -28,7 +28,7 @@ class ProtocolMode(Enum):
     MODE_4 = 4  # Home Automation mode, no acknowledgments (ECi FW 10.3.50+)
 
 class ArrowheadClient:
-    """Enhanced client for Arrowhead Alarm Panel systems with version detection."""
+    """Enhanced client for Arrowhead Alarm Panel systems with version detection and area support."""
 
     def __init__(self, host: str, port: int, user_pin: str, username: str = "admin", 
                  password: str = "admin", panel_type: str = PANEL_TYPE_ESX):
@@ -80,6 +80,8 @@ class ArrowheadClient:
             # Area status
             "area_a_armed": False if self.panel_config["supports_areas"] else None,
             "area_b_armed": False if self.panel_config["supports_areas"] else None,
+            "area_c_armed": False if self.panel_config["supports_areas"] else None,
+            "area_d_armed": False if self.panel_config["supports_areas"] else None,
             
             # Zone states
             "zones": {i: False for i in range(1, max_zones + 1)},
@@ -162,6 +164,10 @@ class ArrowheadClient:
             auth_success = await self._authenticate()
             
             if auth_success:
+                # For ECi panels, detect firmware version and set protocol mode
+                if self.panel_type == PANEL_TYPE_ECI:
+                    await self._detect_eci_firmware_and_mode()
+                
                 self._connection_state = ConnectionState.CONNECTED
                 self._update_status("connection_state", self._connection_state.value)
                 self._reconnect_attempts = 0
@@ -169,7 +175,8 @@ class ArrowheadClient:
                 # Start keep-alive task
                 self._keep_alive_task = asyncio.create_task(self._keep_alive())
                 
-                _LOGGER.info("Successfully connected to %s", self.panel_config["name"])
+                _LOGGER.info("Successfully connected to %s (Mode %d)", 
+                           self.panel_config["name"], self.protocol_mode.value)
                 return True
             else:
                 raise ConnectionError("Authentication failed")
@@ -182,6 +189,77 @@ class ArrowheadClient:
             _LOGGER.error("Connection error: %s", err)
             await self._handle_connection_error(str(err))
             return False
+
+    async def _detect_eci_firmware_and_mode(self) -> None:
+        """Detect ECi firmware version and set appropriate protocol mode."""
+        try:
+            _LOGGER.info("Detecting ECi firmware version...")
+            
+            # Send VERSION command (supported in all modes 1,2,3,4)
+            response = await self._send_command("VERSION", expect_response=True)
+            
+            if response:
+                _LOGGER.info("VERSION response: %r", response)
+                
+                # Parse version from response like 'OK Version "ECi-10.5.12"'
+                version_match = re.search(r'Version\s+"?([^"]+)"?', response)
+                if version_match:
+                    self.firmware_version = version_match.group(1)
+                    _LOGGER.info("Detected firmware version: %s", self.firmware_version)
+                    
+                    # Update status
+                    self._status["firmware_version"] = self.firmware_version
+                    
+                    # Determine protocol mode based on firmware version
+                    if "ECi" in self.firmware_version:
+                        # Extract version number (e.g., "10.5.12" from "ECi-10.5.12")
+                        version_num_match = re.search(r'(\d+)\.(\d+)\.(\d+)', self.firmware_version)
+                        if version_num_match:
+                            major = int(version_num_match.group(1))
+                            minor = int(version_num_match.group(2))
+                            patch = int(version_num_match.group(3))
+                            
+                            # Check if firmware >= 10.3.50
+                            if (major > 10) or (major == 10 and minor > 3) or (major == 10 and minor == 3 and patch >= 50):
+                                self.protocol_mode = ProtocolMode.MODE_4
+                                self.supports_mode_4 = True
+                                _LOGGER.info("Using Mode 4 (Home Automation) for firmware %s", self.firmware_version)
+                            else:
+                                self.protocol_mode = ProtocolMode.MODE_1
+                                self.supports_mode_4 = False
+                                _LOGGER.info("Using Mode 1 (Default) for firmware %s", self.firmware_version)
+                        else:
+                            # Couldn't parse version, default to Mode 1
+                            self.protocol_mode = ProtocolMode.MODE_1
+                            self.supports_mode_4 = False
+                            _LOGGER.warning("Could not parse version number from %s, using Mode 1", self.firmware_version)
+                    else:
+                        # Not ECi firmware, use Mode 1
+                        self.protocol_mode = ProtocolMode.MODE_1
+                        self.supports_mode_4 = False
+                        _LOGGER.info("Non-ECi firmware detected: %s, using Mode 1", self.firmware_version)
+                else:
+                    _LOGGER.warning("Could not parse firmware version from response: %r", response)
+                    self.protocol_mode = ProtocolMode.MODE_1
+                    self.supports_mode_4 = False
+            else:
+                _LOGGER.warning("No response to VERSION command, defaulting to Mode 1")
+                self.protocol_mode = ProtocolMode.MODE_1
+                self.supports_mode_4 = False
+                
+            # Update status with protocol information
+            self._status["protocol_mode"] = self.protocol_mode.value
+            self._status["supports_mode_4"] = self.supports_mode_4
+            
+            _LOGGER.info("Protocol mode set to: Mode %d", self.protocol_mode.value)
+            
+        except Exception as err:
+            _LOGGER.error("Error detecting firmware version: %s", err)
+            # Default to Mode 1 on error
+            self.protocol_mode = ProtocolMode.MODE_1
+            self.supports_mode_4 = False
+            self._status["protocol_mode"] = self.protocol_mode.value
+            self._status["supports_mode_4"] = self.supports_mode_4
 
     async def _authenticate(self) -> bool:
         """Authenticate with panel-specific logic."""
@@ -244,7 +322,6 @@ class ArrowheadClient:
             
         return False
 
-    # Communication methods
     async def _send_raw(self, data: str) -> None:
         """Send raw data to the connection."""
         if not self.writer:
@@ -254,23 +331,25 @@ class ArrowheadClient:
         await self.writer.drain()
 
     async def _get_next_response(self) -> str:
-        """Get next response with improved queue management."""
+        """Get next response with improved queue management for ECi detection."""
         auth_task = asyncio.create_task(self._auth_queue.get())
         resp_task = asyncio.create_task(self._response_queue.get())
         
         done, pending = await asyncio.wait(
             [auth_task, resp_task], 
             return_when=asyncio.FIRST_COMPLETED,
-            timeout=5.0
+            timeout=10.0
         )
         
         for task in pending:
             task.cancel()
             
         if done:
-            return list(done)[0].result()
+            result = list(done)[0].result()
+            _LOGGER.debug("Got response from queue: %r", result)
+            return result
         else:
-            raise asyncio.TimeoutError("No response received")
+            raise asyncio.TimeoutError("No response received within timeout")
 
     async def disconnect(self) -> None:
         """Disconnect with proper cleanup."""
@@ -291,7 +370,6 @@ class ArrowheadClient:
         self.reader = None
         self.writer = None
 
-    # Error handling and reconnection
     async def _handle_connection_error(self, error_msg: str) -> None:
         """Handle connection errors with automatic reconnection."""
         self._connection_state = ConnectionState.ERROR
@@ -316,9 +394,8 @@ class ArrowheadClient:
             self._reconnect_delay = min(self._reconnect_delay * 2, 300)
             self._reconnect_task = asyncio.create_task(self._reconnect())
 
-    # Message processing
     async def _read_response(self) -> None:
-        """Read and process responses with protocol-aware handling."""
+        """Read and process responses with enhanced ECi support."""
         while self._connection_state != ConnectionState.DISCONNECTED:
             try:
                 if not self.reader:
@@ -335,19 +412,35 @@ class ArrowheadClient:
                     self._last_message = datetime.now()
                     self._update_status("last_update", self._last_message.isoformat())
                     
+                    # Log all messages for ECi debugging
+                    if self.panel_type == PANEL_TYPE_ECI:
+                        _LOGGER.debug("ECi message received: %r", message)
+                    
                     # Process the message
                     self._process_message(message)
                     
-                    # Add to queues
+                    # Add to queues with better handling for ECi responses
                     try:
+                        # Clear old responses to prevent queue buildup
+                        while not self._auth_queue.empty():
+                            try:
+                                self._auth_queue.get_nowait()
+                            except asyncio.QueueEmpty:
+                                break
+                        while not self._response_queue.empty():
+                            try:
+                                self._response_queue.get_nowait()
+                            except asyncio.QueueEmpty:
+                                break
+                                
                         self._auth_queue.put_nowait(message)
                         self._response_queue.put_nowait(message)
+                        
                     except asyncio.QueueFull:
-                        try:
-                            self._auth_queue.get_nowait()
-                            self._response_queue.get_nowait()
-                        except asyncio.QueueEmpty:
-                            pass
+                        _LOGGER.warning("Response queues full, clearing and adding new message")
+                        # Force clear and add
+                        self._auth_queue = asyncio.Queue()
+                        self._response_queue = asyncio.Queue()
                         self._auth_queue.put_nowait(message)
                         self._response_queue.put_nowait(message)
                         
@@ -357,6 +450,7 @@ class ArrowheadClient:
             except asyncio.CancelledError:
                 break
             except Exception as err:
+                _LOGGER.error("Error in read response loop: %s", err)
                 await self._handle_connection_error(f"Read error: {err}")
                 break
 
@@ -421,33 +515,44 @@ class ArrowheadClient:
         return False
 
     def _process_area_message(self, message: str) -> bool:
-        """Process area-related messages."""
+        """Process area-related messages with enhanced area support."""
+        # Area arm messages: A1, A2, A3, A4, etc.
         if message.startswith("A") and len(message) >= 2:
             try:
                 area_num = int(message[1:])
-                self._status["armed"] = True
-                self._status["arming"] = False
-                if area_num == 1:
-                    self._status["area_a_armed"] = True
-                elif area_num == 2:
-                    self._status["area_b_armed"] = True
-                self._status["status_message"] = f"Area {area_num} Armed"
-                return True
+                if 1 <= area_num <= 8:  # Support up to 8 areas
+                    area_key = f"area_{chr(64 + area_num).lower()}_armed"  # area_a_armed, area_b_armed, etc.
+                    self._status[area_key] = True
+                    
+                    # Check if any area is armed for overall status
+                    any_armed = any(self._status.get(f"area_{chr(65 + i).lower()}_armed", False) for i in range(8))
+                    self._status["armed"] = any_armed
+                    self._status["arming"] = False
+                    
+                    self._status["status_message"] = f"Area {area_num} Armed"
+                    _LOGGER.info("Area %d armed", area_num)
+                    return True
             except ValueError:
                 pass
                 
+        # Area disarm messages: D1, D2, D3, D4, etc.
         elif message.startswith("D") and len(message) >= 2:
             try:
                 area_num = int(message[1:])
-                if area_num == 1:
-                    self._status["area_a_armed"] = False
-                elif area_num == 2:
-                    self._status["area_b_armed"] = False
-                
-                if not self._status.get("area_a_armed", False) and not self._status.get("area_b_armed", False):
-                    self._status["armed"] = False
-                    self._status["status_message"] = "Disarmed"
-                return True
+                if 1 <= area_num <= 8:
+                    area_key = f"area_{chr(64 + area_num).lower()}_armed"
+                    self._status[area_key] = False
+                    
+                    # Check if any area is still armed
+                    any_armed = any(self._status.get(f"area_{chr(65 + i).lower()}_armed", False) for i in range(8))
+                    if not any_armed:
+                        self._status["armed"] = False
+                        self._status["status_message"] = "All Areas Disarmed"
+                    else:
+                        self._status["status_message"] = f"Area {area_num} Disarmed"
+                    
+                    _LOGGER.info("Area %d disarmed", area_num)
+                    return True
             except ValueError:
                 pass
                 
@@ -531,26 +636,38 @@ class ArrowheadClient:
             self._status["armed"] = False
             self._status["alarm"] = False
             self._status["stay_mode"] = False
+            # Reset all area armed states
+            for i in range(1, 9):
+                area_key = f"area_{chr(64 + i).lower()}_armed"
+                if area_key in self._status:
+                    self._status[area_key] = False
             self._status["status_message"] = "Disarmed"
             return True
             
         return False
 
     async def _send_command(self, command: str, expect_response: bool = False) -> Optional[str]:
-        """Send command with improved error handling."""
+        """Send command with improved error handling and ECi detection support."""
         if not self.is_connected:
             raise ConnectionError(f"Not connected to {self.panel_type.upper()} alarm system")
             
         try:
+            _LOGGER.debug("Sending command: %s (expect_response=%s)", command, expect_response)
             await self._send_raw(f"{command}\n")
             
             if expect_response:
-                return await asyncio.wait_for(
+                response = await asyncio.wait_for(
                     self._get_next_response(), 
-                    timeout=5.0
+                    timeout=10.0
                 )
+                _LOGGER.debug("Received response for '%s': %r", command, response)
+                return response
                 
+        except asyncio.TimeoutError:
+            _LOGGER.warning("Timeout waiting for response to command: %s", command)
+            raise
         except Exception as err:
+            _LOGGER.error("Error sending command '%s': %s", command, err)
             await self._handle_connection_error(f"Command error: {err}")
             raise
             
@@ -573,8 +690,10 @@ class ArrowheadClient:
             except Exception:
                 break
 
+    # ===== GENERAL ARM/DISARM METHODS (All Areas) =====
+
     async def arm_away(self) -> bool:
-        """Arm the alarm in away mode."""
+        """Arm the alarm in away mode (all areas) using correct protocol commands."""
         try:
             _LOGGER.info("Attempting to arm in away mode with user PIN: %s", self.user_pin)
             
@@ -585,20 +704,19 @@ class ArrowheadClient:
             # Parse user_pin to extract user number and pin
             user_num, pin = self._parse_user_pin(self.user_pin)
             
-            # Try different command formats based on panel type and mode
+            # Use correct protocol commands based on documentation
             commands_to_try = []
             
-            if user_num and pin:
-                # Mode 1,3,4: ARMAWAY [user-number] [pin]
-                commands_to_try.append(f"ARMAWAY {user_num} {pin}")
-            
-            # Mode 2: ARMAWAY [area-number] (but we need to know the area)
-            if self.panel_type == "ECi":
-                # Try area 1 as default for ECi
-                commands_to_try.append("ARMAWAY 1")
-            
-            # Single button mode (all modes)
+            # Mode 1,3,4: ARMAWAY (arm by arm button)
             commands_to_try.append("ARMAWAY")
+            
+            # Mode 1,3,4: ARMAWAY x (x = 1-2000) - Arm away as user #, no pin
+            if user_num and (1 <= int(user_num) <= 2000):
+                commands_to_try.append(f"ARMAWAY {user_num}")
+            
+            # Mode 1,3,4: ARMAWAY x pin (x = 1-2000, user pin is <user pin>) - Arm away as user #, user pin
+            if user_num and pin and (1 <= int(user_num) <= 2000):
+                commands_to_try.append(f"ARMAWAY {user_num} {pin}")
             
             # Try each command until one works
             for command in commands_to_try:
@@ -609,7 +727,7 @@ class ArrowheadClient:
                     _LOGGER.info("ARMAWAY command response: %r", response)
                     
                     # Check if the response indicates success
-                    if response and ("OK" in response or "ArmAway" in response):
+                    if response and ("OK" in response or "ARM" in response.upper()):
                         _LOGGER.info("ARMAWAY command accepted by panel")
                         
                         # Wait a bit for the status to update
@@ -627,7 +745,7 @@ class ArrowheadClient:
                         _LOGGER.warning("Panel did not accept ARMAWAY command '%s'. Response: %r", command, response)
                         continue
                         
-                except RuntimeError as err:
+                except Exception as err:
                     _LOGGER.warning("Panel returned error for ARMAWAY '%s': %s", command, err)
                     continue
             
@@ -640,7 +758,7 @@ class ArrowheadClient:
             return False
 
     async def arm_stay(self) -> bool:
-        """Arm the alarm in stay mode."""
+        """Arm the alarm in stay mode (all areas) using correct protocol commands."""
         try:
             _LOGGER.info("Attempting to arm in stay mode with user PIN: %s", self.user_pin)
             
@@ -648,43 +766,31 @@ class ArrowheadClient:
                 _LOGGER.error("Cannot arm stay: not connected to panel")
                 return False
             
-            # Check panel compatibility
-            if self.panel_type == "ESX":
-                _LOGGER.debug("ESX panel detected - using ESX-compatible commands")
-            elif self.panel_type == "ECi":
-                _LOGGER.debug("ECi panel detected - using ECi-compatible commands")
-            
-            # First, check if we can arm (system ready)
-            _LOGGER.debug("Checking system status before arming...")
-            status = await self.get_status()
-            if status:
-                _LOGGER.debug("Pre-arm status: ready_to_arm=%s, armed=%s", 
-                             status.get("ready_to_arm", False), status.get("armed", False))
-                
-                if status.get("armed", False):
-                    _LOGGER.info("System is already armed")
-                    return True
-                    
-                if not status.get("ready_to_arm", False):
-                    _LOGGER.warning("System not ready to arm - check zones are sealed")
-                    # Continue anyway, let the panel decide
-            
             # Parse user_pin to extract user number and pin
             user_num, pin = self._parse_user_pin(self.user_pin)
             
-            # Try different command formats based on panel type and mode
+            # STAY MODE ALWAYS REQUIRES PIN according to your panel behavior
+            if not user_num or not pin:
+                _LOGGER.error("User PIN required for stay mode arming. Current user_pin: %s", self.user_pin)
+                return False
+            
+            # Use correct protocol commands based on documentation
             commands_to_try = []
             
-            if user_num and pin:
-                # Mode 1,3,4: ARMSTAY [user-number] [pin]
-                commands_to_try.append(f"ARMSTAY {user_num} {pin}")
+            # For stay mode, START with PIN-based commands since panel asks for PIN
+            # Mode 1,3: ARMSTAY x pin (x = 1-2000, user pin is <user pin>) - Arm stay as user #, user pin
+            if 1 <= int(user_num) <= 2000:
+                # Note: Mode 4 doesn't support ARMSTAY with user pin according to docs
+                if self.protocol_mode != ProtocolMode.MODE_4:
+                    commands_to_try.append(f"ARMSTAY {user_num} {pin}")
             
-            # Mode 2: ARMSTAY [area-number] (but we need to know the area)
-            if self.panel_type == "ECi":
-                # Try area 1 as default for ECi
-                commands_to_try.append("ARMSTAY 1")
+            # Mode 1,3: ARMSTAY x (x = 1-2000) - Arm stay as user #, no pin
+            if user_num and (1 <= int(user_num) <= 2000):
+                # Note: Mode 4 doesn't support ARMSTAY with user number according to docs
+                if self.protocol_mode != ProtocolMode.MODE_4:
+                    commands_to_try.append(f"ARMSTAY {user_num}")
             
-            # Single button mode (all modes)
+            # Mode 1,3,4: ARMSTAY (arm stay by stay button) - try last since it may ask for PIN
             commands_to_try.append("ARMSTAY")
             
             # Try each command until one works
@@ -692,11 +798,11 @@ class ArrowheadClient:
                 _LOGGER.info("Trying ARMSTAY command: %s", command)
                 
                 try:
-                    response = await self._send_command(command)
+                    response = await self._send_command(command, expect_response=True)
                     _LOGGER.info("ARMSTAY command response: %r", response)
                     
                     # Check if the response indicates success
-                    if response and ("OK" in response or "ArmStay" in response):
+                    if response and ("OK" in response or "ARM" in response.upper() or "STAY" in response.upper()):
                         _LOGGER.info("ARMSTAY command accepted by panel")
                         
                         # Wait a bit for the status to update
@@ -723,12 +829,16 @@ class ArrowheadClient:
                             _LOGGER.warning("Could not get status after ARMSTAY command")
                             # Try next command
                             continue
+                    elif response and ("PIN" in response.upper() or "CODE" in response.upper()):
+                        _LOGGER.warning("ARMSTAY command requires PIN: %r", response)
+                        # Try next command which should include PIN
+                        continue
                     else:
                         _LOGGER.warning("Panel did not accept ARMSTAY command '%s'. Response: %r", command, response)
                         # Try next command
                         continue
                         
-                except RuntimeError as err:
+                except Exception as err:
                     _LOGGER.warning("Panel returned error for ARMSTAY '%s': %s", command, err)
                     # Try next command
                     continue
@@ -742,7 +852,7 @@ class ArrowheadClient:
             return False
 
     async def disarm(self) -> bool:
-        """Disarm the alarm."""
+        """Disarm the alarm (all areas) using correct protocol commands."""
         try:
             _LOGGER.info("Sending DISARM command with user PIN: %s", self.user_pin)
             
@@ -753,30 +863,344 @@ class ArrowheadClient:
             # Parse user_pin to extract user number and pin
             user_num, pin = self._parse_user_pin(self.user_pin)
             
-            if user_num and pin:
-                command = f"DISARM {user_num} {pin}"
-            else:
+            if not user_num or not pin:
                 _LOGGER.error("Invalid user PIN format: %s", self.user_pin)
                 return False
+            
+            # Use correct protocol commands based on documentation
+            commands_to_try = []
+            
+            # Mode 1,3,4: DISARM x pin (x = 1-2000, user pin is <user pin>) - Disarm as user #
+            if 1 <= int(user_num) <= 2000:
+                commands_to_try.append(f"DISARM {user_num} {pin}")
+            
+            # Try each command
+            for command in commands_to_try:
+                _LOGGER.info("Sending command: %s", command)
                 
-            _LOGGER.info("Sending command: %s", command)
-            await self._send_command(command)
+                try:
+                    response = await self._send_command(command)
+                    _LOGGER.info("DISARM command response: %r", response)
+                    
+                    # Wait a bit for the response and status change
+                    await asyncio.sleep(2)
+                    
+                    # Check if disarming was successful
+                    status = await self.get_status()
+                    if status and not status.get("armed", True):
+                        _LOGGER.info("DISARM command successful")
+                        return True
+                    else:
+                        _LOGGER.warning("DISARM command sent but panel still shows as armed")
+                        continue
+                        
+                except Exception as err:
+                    _LOGGER.warning("DISARM command failed: %s", err)
+                    continue
             
-            # Wait a bit for the response and status change
-            await asyncio.sleep(2)
-            
-            # Check if disarming was successful
-            status = await self.get_status()
-            if status and not status.get("armed", True):
-                _LOGGER.info("DISARM command successful")
-                return True
-            else:
-                _LOGGER.warning("DISARM command sent but panel still shows as armed")
-                return False
+            _LOGGER.error("All DISARM command variations failed")
+            return False
                 
         except Exception as err:
             _LOGGER.error("Error sending DISARM command: %s", err)
             return False
+
+    # ===== AREA-SPECIFIC ARM/DISARM METHODS =====
+
+    async def arm_away_area(self, area: int) -> bool:
+        """Arm specific area in away mode using correct protocol commands based on detected mode."""
+        try:
+            _LOGGER.info("Attempting to arm area %d in away mode (Protocol Mode %d)", area, self.protocol_mode.value)
+            
+            if not self.is_connected:
+                _LOGGER.error("Cannot arm area %d: not connected to panel", area)
+                return False
+            
+            # Validate area range (1-32 per protocol docs)
+            if not (1 <= area <= 32):
+                _LOGGER.error("Invalid area number: %d (must be 1-32)", area)
+                return False
+            
+            # Parse user_pin for user and PIN
+            user_num, pin = self._parse_user_pin(self.user_pin)
+            
+            # Use correct protocol commands based on test results
+            commands_to_try = []
+            
+            if self.protocol_mode == ProtocolMode.MODE_4:
+                # Mode 4: Based on your tests, ARMAREA/STAYAREA are "NA" (not available)
+                # Use area-specific ARMAWAY commands that work
+                
+                # Test shows: ARMAWAY 2 456 → OK ArmAway (works with PIN)
+                if user_num and pin and (1 <= int(user_num) <= 2000):
+                    commands_to_try.append(f"ARMAWAY {area} {pin}")
+                
+                # Test shows: ARMAWAY 2 → OK ArmAway (works without PIN)
+                commands_to_try.append(f"ARMAWAY {area}")
+                
+                # Fallback to user-based commands
+                if user_num and pin and (1 <= int(user_num) <= 2000):
+                    commands_to_try.append(f"ARMAWAY {user_num} {pin}")
+                    commands_to_try.append(f"ARMAWAY {user_num}")
+                commands_to_try.append("ARMAWAY")
+                
+            elif self.protocol_mode == ProtocolMode.MODE_2:
+                # Mode 2: ARMAWAY x (x = 1-32) - Arm away area #
+                commands_to_try.append(f"ARMAWAY {area}")
+                
+                # Mode 2 fallback: user-based commands if area fails
+                if user_num and pin and (1 <= int(user_num) <= 2000):
+                    commands_to_try.append(f"ARMAWAY {user_num} {pin}")
+                
+            else:  # Mode 1 or 3
+                # Mode 1,3: User-based commands
+                if user_num and pin and (1 <= int(user_num) <= 2000):
+                    commands_to_try.append(f"ARMAWAY {user_num} {pin}")
+                if user_num and (1 <= int(user_num) <= 2000):
+                    commands_to_try.append(f"ARMAWAY {user_num}")
+                commands_to_try.append("ARMAWAY")
+            
+            # Try each command until one works
+            for command in commands_to_try:
+                _LOGGER.info("Trying area %d ARMAWAY command: %s", area, command)
+                
+                try:
+                    response = await self._send_command(command, expect_response=True)
+                    _LOGGER.info("Area %d ARMAWAY response: %r", area, response)
+                    
+                    # Check for success response
+                    if response and ("OK" in response or "ARM" in response.upper()):
+                        _LOGGER.info("Area %d ARMAWAY command accepted", area)
+                        await asyncio.sleep(3)  # Wait for status update
+                        
+                        # Verify arming - look for EA2 message or armed status
+                        status = await self.get_status()
+                        area_key = f"area_{chr(64 + area).lower()}_armed"
+                        
+                        # For area-specific commands, check both area-specific and general armed state
+                        area_armed = status.get(area_key, False)
+                        general_armed = status.get("armed", False)
+                        
+                        if area_armed or general_armed:
+                            _LOGGER.info("Area %d successfully armed in away mode", area)
+                            return True
+                        else:
+                            _LOGGER.warning("Area %d command accepted but not showing as armed", area)
+                            continue
+                    elif response and ("ERROR" in response.upper() or "NA" in response.upper()):
+                        _LOGGER.warning("Area %d ARMAWAY command not available: %r", area, response)
+                        continue
+                    elif response and ("PIN" in response.upper() or "CODE" in response.upper()):
+                        _LOGGER.warning("Area %d ARMAWAY command requires PIN: %r", area, response)
+                        continue
+                    else:
+                        _LOGGER.warning("Area %d ARMAWAY command rejected: %r", area, response)
+                        continue
+                        
+                except Exception as err:
+                    _LOGGER.warning("Area %d ARMAWAY command '%s' failed: %s", area, command, err)
+                    continue
+            
+            _LOGGER.error("All area %d ARMAWAY commands failed", area)
+            return False
+                
+        except Exception as err:
+            _LOGGER.error("Error arming area %d away: %s", area, err)
+            return False
+
+    async def arm_stay_area(self, area: int) -> bool:
+        """Arm specific area in stay mode using correct protocol commands based on detected mode."""
+        try:
+            _LOGGER.info("Attempting to arm area %d in stay mode (Protocol Mode %d)", area, self.protocol_mode.value)
+            
+            if not self.is_connected:
+                _LOGGER.error("Cannot arm area %d: not connected to panel", area)
+                return False
+            
+            # Validate area range (1-32 per protocol docs)
+            if not (1 <= area <= 32):
+                _LOGGER.error("Invalid area number: %d (must be 1-32)", area)
+                return False
+            
+            user_num, pin = self._parse_user_pin(self.user_pin)
+            
+            # Based on your test results, area-specific stay commands don't work in Mode 4
+            # STAYAREA 2 → ERROR StayArea NA
+            # STAY variants → ERROR
+            # But ARMSTAY works for general stay mode
+            
+            _LOGGER.warning("Area-specific stay mode not supported in Mode 4. Using general ARMSTAY.")
+            _LOGGER.warning("This will arm the entire system in stay mode, not just area %d", area)
+            
+            # Use general stay mode as fallback since area-specific stay doesn't work
+            commands_to_try = []
+            
+            if self.protocol_mode == ProtocolMode.MODE_4:
+                # Mode 4: STAYAREA is "NA", use general ARMSTAY
+                commands_to_try.append("ARMSTAY")  # This works: ARMSTAY → OK ArmStay
+                
+                # Note: Based on tests, Mode 4 doesn't support user-based ARMSTAY commands
+                
+            elif self.protocol_mode == ProtocolMode.MODE_2:
+                # Mode 2: ARMSTAY x (x = 1-32) - Arm stay area #
+                commands_to_try.append(f"ARMSTAY {area}")
+                
+                # Mode 2 fallback: user-based commands
+                if user_num and pin and (1 <= int(user_num) <= 2000):
+                    commands_to_try.append(f"ARMSTAY {user_num} {pin}")
+                
+            else:  # Mode 1 or 3
+                # Mode 1,3: User-based commands
+                if user_num and pin and (1 <= int(user_num) <= 2000):
+                    commands_to_try.append(f"ARMSTAY {user_num} {pin}")
+                if user_num and (1 <= int(user_num) <= 2000):
+                    commands_to_try.append(f"ARMSTAY {user_num}")
+                commands_to_try.append("ARMSTAY")
+            
+            for command in commands_to_try:
+                _LOGGER.info("Trying area %d ARMSTAY command: %s", area, command)
+                
+                try:
+                    response = await self._send_command(command, expect_response=True)
+                    _LOGGER.info("Area %d ARMSTAY response: %r", area, response)
+                    
+                    if response and ("OK" in response or "ARM" in response.upper() or "STAY" in response.upper()):
+                        await asyncio.sleep(3)
+                        
+                        status = await self.get_status()
+                        
+                        # For Mode 4 general ARMSTAY, check general armed status
+                        if self.protocol_mode == ProtocolMode.MODE_4:
+                            general_armed = status.get("armed", False)
+                            stay_mode = status.get("stay_mode", False)
+                            
+                            if general_armed or stay_mode:
+                                _LOGGER.info("System successfully armed in stay mode (affects all areas)")
+                                return True
+                        else:
+                            # For other modes, check area-specific status
+                            area_key = f"area_{chr(64 + area).lower()}_armed"
+                            area_armed = status.get(area_key, False)
+                            general_armed = status.get("armed", False)
+                            
+                            if area_armed or general_armed:
+                                _LOGGER.info("Area %d successfully armed in stay mode", area)
+                                return True
+                        
+                        continue
+                    elif response and ("ERROR" in response.upper() or "NA" in response.upper()):
+                        _LOGGER.warning("Area %d ARMSTAY command not available: %r", area, response)
+                        continue
+                    elif response and ("PIN" in response.upper() or "CODE" in response.upper()):
+                        _LOGGER.warning("Area %d ARMSTAY command requires PIN: %r", area, response)
+                        continue
+                    else:
+                        _LOGGER.warning("Area %d ARMSTAY command rejected: %r", area, response)
+                        continue
+                        
+                except Exception as err:
+                    _LOGGER.warning("Area ARMSTAY command failed: %s", err)
+                    continue
+            
+            return False
+                
+        except Exception as err:
+            _LOGGER.error("Error arming area %d stay: %s", area, err)
+            return False
+
+    async def disarm_area(self, area: int) -> bool:
+        """Disarm specific area using correct protocol commands."""
+        try:
+            _LOGGER.info("Attempting to disarm area %d", area)
+            
+            if not self.is_connected:
+                _LOGGER.error("Cannot disarm area %d: not connected", area)
+                return False
+            
+            # Validate area range (1-32 per protocol docs)
+            if not (1 <= area <= 32):
+                _LOGGER.error("Invalid area number: %d (must be 1-32)", area)
+                return False
+            
+            user_num, pin = self._parse_user_pin(self.user_pin)
+            
+            if not user_num or not pin:
+                _LOGGER.error("Invalid user PIN for area disarm")
+                return False
+            
+            # Use correct protocol commands based on your test results
+            commands_to_try = []
+            
+            if self.protocol_mode == ProtocolMode.MODE_4:
+                # Based on your tests: DISARM 2 456 → OK Disarm + D2 (works!)
+                # Try area-specific disarm with PIN first
+                commands_to_try.append(f"DISARM {area} {pin}")
+                
+                # Fallback to user-based disarm
+                if 1 <= int(user_num) <= 2000:
+                    commands_to_try.append(f"DISARM {user_num} {pin}")
+                    
+            elif self.protocol_mode == ProtocolMode.MODE_2:
+                # Mode 2: DISARM x pin (x = 1-32, user pin is <user pin>) - Disarm partition #
+                commands_to_try.append(f"DISARM {area} {pin}")
+                
+                # Mode 2 fallback: user-based disarm
+                if 1 <= int(user_num) <= 2000:
+                    commands_to_try.append(f"DISARM {user_num} {pin}")
+                    
+            else:  # Mode 1 or 3
+                # Mode 1,3,4: DISARM x pin (x = 1-2000, user pin is <user pin>) - Disarm as user #
+                if 1 <= int(user_num) <= 2000:
+                    commands_to_try.append(f"DISARM {user_num} {pin}")
+                
+                # Try area disarm as fallback
+                commands_to_try.append(f"DISARM {area} {pin}")
+            
+            for command in commands_to_try:
+                _LOGGER.info("Trying area %d DISARM command: %s", area, command)
+                
+                try:
+                    response = await self._send_command(command, expect_response=True)
+                    _LOGGER.info("Area %d DISARM response: %r", area, response)
+                    
+                    # Check for success response
+                    if response and ("OK" in response or "DISARM" in response.upper()):
+                        _LOGGER.info("Area %d DISARM command accepted", area)
+                        await asyncio.sleep(2)
+                        
+                        status = await self.get_status()
+                        area_key = f"area_{chr(64 + area).lower()}_armed"
+                        area_armed = status.get(area_key, True)  # Default to True (armed) if not found
+                        general_armed = status.get("armed", True)
+                        
+                        # Success if either area-specific or general armed state shows disarmed
+                        if not area_armed or not general_armed:
+                            _LOGGER.info("Area %d successfully disarmed", area)
+                            return True
+                        else:
+                            _LOGGER.warning("Area %d disarm command accepted but still showing as armed", area)
+                            continue
+                    elif response and ("ERROR" in response.upper() or "NA" in response.upper()):
+                        _LOGGER.warning("Area %d DISARM command not available: %r", area, response)
+                        continue
+                    elif response and ("PIN" in response.upper() or "CODE" in response.upper()):
+                        _LOGGER.warning("Area %d DISARM command requires different PIN: %r", area, response)
+                        continue
+                    else:
+                        _LOGGER.warning("Area %d DISARM command rejected: %r", area, response)
+                        continue
+                        
+                except Exception as err:
+                    _LOGGER.warning("Area DISARM command failed: %s", err)
+                    continue
+            
+            return False
+                
+        except Exception as err:
+            _LOGGER.error("Error disarming area %d: %s", area, err)
+            return False
+
+    # ===== ZONE BYPASS METHODS =====
 
     def _parse_user_pin(self, user_pin: str) -> tuple[Optional[str], Optional[str]]:
         """Parse user_pin format '1 123' into user number and PIN."""
@@ -820,6 +1244,8 @@ class ArrowheadClient:
             _LOGGER.error("Error unbypassing zone %d: %s", zone_number, err)
             return False
 
+    # ===== OUTPUT CONTROL METHODS =====
+
     async def trigger_output(self, output_number: int, duration: int = 0) -> bool:
         """Trigger an output for specified duration (0 = toggle)."""
         try:
@@ -856,6 +1282,8 @@ class ArrowheadClient:
         except Exception:
             return False
 
+    # ===== STATUS AND UTILITY METHODS =====
+
     async def get_status(self) -> Dict[str, Any]:
         """Get current status."""
         if self.is_connected:
@@ -865,6 +1293,62 @@ class ArrowheadClient:
                 pass
                 
         return self._status.copy()
+
+    async def get_area_status(self, area: int) -> Dict[str, Any]:
+        """Get status for a specific area."""
+        status = await self.get_status()
+        if not status:
+            return {}
+        
+        # Get area armed status
+        area_key = f"area_{chr(64 + area).lower()}_armed"
+        area_armed = status.get(area_key, False)
+        
+        # Get zones for this area (if zones_in_areas is available)
+        zones_in_areas = status.get("zones_in_areas", {})
+        area_zones = zones_in_areas.get(area, [])
+        
+        if isinstance(area_zones, set):
+            area_zones = list(area_zones)
+        
+        # Calculate area-specific zone states
+        zone_data = status.get("zones", {})
+        zone_alarms = status.get("zone_alarms", {})
+        zone_troubles = status.get("zone_troubles", {})
+        zone_bypassed = status.get("zone_bypassed", {})
+        
+        area_status = {
+            "area_number": area,
+            "armed": area_armed,
+            "zones": area_zones,
+            "total_zones": len(area_zones),
+            "open_zones": [z for z in area_zones if zone_data.get(z, False)],
+            "alarm_zones": [z for z in area_zones if zone_alarms.get(z, False)],
+            "trouble_zones": [z for z in area_zones if zone_troubles.get(z, False)],
+            "bypassed_zones": [z for z in area_zones if zone_bypassed.get(z, False)],
+        }
+        
+        # Calculate ready to arm for this area
+        area_status["ready_to_arm"] = len(area_status["open_zones"]) == 0
+        
+        return area_status
+
+    async def send_custom_command(self, command: str) -> Optional[str]:
+        """Send a custom command to the panel."""
+        try:
+            if not self.is_connected:
+                _LOGGER.warning("Cannot send custom command: not connected")
+                return None
+            
+            _LOGGER.info("Sending custom command: %s", command)
+            response = await self._send_command(command, expect_response=True)
+            _LOGGER.info("Custom command response: %r", response)
+            
+            return response
+            
+        except Exception as err:
+            _LOGGER.error("Error sending custom command '%s': %s", command, err)
+            return None
 
     def configure_manual_outputs(self, max_outputs: int) -> None:
         """Configure outputs manually based on user selection."""
