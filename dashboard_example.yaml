@@ -70,7 +70,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -130,7 +132,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -189,7 +193,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -248,7 +254,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -307,7 +315,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -366,7 +376,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -425,7 +437,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -484,7 +498,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -543,7 +559,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -602,7 +620,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -661,7 +681,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -720,7 +742,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -779,7 +803,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -838,7 +864,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -897,7 +925,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -956,7 +986,9 @@ cards:
     grid_options:
       columns: 12
       rows: 1
-    icon: mdi:door
+    icon: ""
+    icon_tap_action:
+      action: more-info
     card_mod:
       style: |
         ha-card {
@@ -1000,6 +1032,8 @@ cards:
         }
   - type: tile
     entity: switch.output_1
+    features_position: bottom
+    vertical: false
   - type: tile
     entity: switch.output_2
   - type: tile
