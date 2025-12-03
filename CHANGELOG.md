@@ -1,0 +1,199 @@
+# Changelog
+
+All notable changes to the Arrowhead Alarm Panel integration will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.0.0] - 2024-12-03
+
+### 🎯 Major Changes
+
+#### ECi-Only Focus
+- **BREAKING**: Removed ESX Elite-SX support (moved to separate branch)
+- Streamlined codebase for ECi Series panels only
+- Simplified configuration flow for single panel type
+- Improved performance with ECi-specific optimizations
+
+#### MODE 4 Protocol Support
+- Full support for ECi firmware 10.3.50+ MODE 4 protocol
+- Enhanced communication with no acknowledgment overhead
+- Better compatibility with latest ECi firmware versions
+- Automatic protocol mode detection and adaptation
+
+#### Area Management Overhaul
+- Individual alarm panel entities for each configured area
+- Separate control and monitoring per area
+- Main panel entity controlling all areas
+- Better state representation for multi-area systems
+
+### ✨ Added Features
+
+#### Keypad Alarms (MODE 4)
+- Trigger panic alarms via `trigger_keypad_alarm` service
+- Trigger fire alarms via service
+- Trigger medical alarms via service
+- Keypad alarm state tracking in binary sensors
+
+#### Enhanced Area Commands
+- `ARMAREA` command for MODE 4 away arming
+- `STAYAREA` command for MODE 4 stay arming
+- More reliable area-specific arming
+- User tracking for arm/disarm actions
+
+#### Bulk Operations
+- `bulk_arm_areas` service for arming multiple areas
+- `bulk_disarm_areas` service for disarming multiple areas
+- `bulk_bypass` service for zone bypass operations
+- Configurable delays between bulk commands
+
+#### Improved Zone Detection
+- Better P4075Ex response parsing
+- Sealed zone support and initialization
+- More accurate zone count detection
+- Enhanced expander detection
+
+#### Health Monitoring
+- Comprehensive health check system
+- Connection state tracking
+- Success rate metrics
+- Communication error tracking
+- Diagnostic information service
+
+#### Output Management
+- Improved output switch creation
+- Better state synchronization
+- Multiple detection methods with fallback
+- Enhanced output control reliability
+
+### 🐛 Bug Fixes
+
+#### Zone Initialization
+- Fixed sealed zone initialization
+- Corrected zone state tracking for unopened zones
+- Better handling of zone configuration from panel
+- Improved zone name persistence
+
+#### Switch Platform
+- Fixed switch entity creation issues
+- Improved output detection from multiple sources
+- Better coordinator data initialization
+- Enhanced retry mechanism for switch setup
+
+#### Device Info
+- Consistent device identifiers across all platforms
+- Proper device grouping in Home Assistant
+- Firmware version tracking in device info
+- Better device attribute updates
+
+#### Connection Management
+- Improved reconnection logic with exponential backoff
+- Better error handling during connection loss
+- Enhanced connection state reporting
+- More reliable status updates
+
+#### Area Detection
+- Fixed manual area configuration
+- Better fallback from auto-detection to manual
+- Improved area panel creation logic
+- Consistent area numbering
+
+### 🔧 Improvements
+
+#### Configuration Flow
+- Enhanced zone and area configuration wizard
+- Better error messages and validation
+- Improved user guidance with emojis and formatting
+- Clearer explanations for manual area configuration
+
+#### Services
+- More comprehensive service schemas
+- Better parameter validation
+- Enhanced service descriptions
+- Improved error messages
+
+#### Logging
+- More detailed debug logging
+- Better structured log messages
+- Health metrics logging
+- Connection state change logging
+
+#### Code Quality
+- Improved code organization
+- Better type hints and documentation
+- Enhanced error handling throughout
+- More consistent naming conventions
+
+### 📚 Documentation
+
+- Complete README overhaul for v2.0.0
+- New CHANGELOG for version tracking
+- Enhanced service documentation
+- More automation examples
+- Improved troubleshooting guide
+
+### ⚠️ Breaking Changes
+
+1. **ESX Support Removed**: ESX Elite-SX panels are no longer supported in this version. If you need ESX support, use version 1.x or the ESX-specific branch.
+
+2. **Area Configuration**: Areas are now manually configured during setup (auto-detection unreliable). You must specify which areas are active.
+
+3. **Entity IDs**: Area panel entities now have different naming scheme (e.g., `alarm_control_panel.arrowhead_eci_area_1`).
+
+4. **Configuration Format**: Some configuration options have changed. Existing installations may need reconfiguration.
+
+### 🔄 Migration Guide
+
+#### From Version 1.x to 2.0.0
+
+1. **ESX Users**: Do not upgrade if you have ESX panels. Stay on v1.x or use ESX branch.
+
+2. **ECi Users**:
+   - Backup your configuration
+   - Remove the old integration
+   - Install v2.0.0
+   - Reconfigure with manual area specification
+   - Update automations to use new entity IDs
+
+3. **Automation Updates**:
+   - Update entity IDs for area panels
+   - Review new services for better functionality
+   - Update zone entity references if needed
+
+### 🧪 Testing
+
+- Tested on ECi F/W Ver. 10.3.51 (MODE 4 fully functional)
+- Tested on ECi F/W Ver. 10.3.50 (MODE 4 supported)
+- Tested with 1-3 areas configured
+- Tested with up to 248 zones
+- Tested with output expanders (up to 32 outputs)
+
+---
+
+## [1.0.0] - 2024-06-03 (Original Release)
+
+### Initial Release Features
+
+- Support for Arrowhead ESX Elite-SX panels
+- Support for Arrowhead ECi Series panels
+- Basic arm/disarm functionality
+- Zone monitoring and bypass
+- Output control
+- System status monitoring
+- HACS integration
+- Configuration flow
+- Service definitions
+- Basic area support
+
+---
+
+## Legend
+
+- 🎯 Major Changes
+- ✨ Added Features
+- 🐛 Bug Fixes
+- 🔧 Improvements
+- 📚 Documentation
+- ⚠️ Breaking Changes
+- 🔄 Migration Guide
+- 🧪 Testing

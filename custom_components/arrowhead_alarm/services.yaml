@@ -115,7 +115,33 @@ arm_away:
   fields:
     user_code:
       name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+arm_stay:
+  name: Arm Stay (All Areas)
+  description: |
+    Arm the ECi system in stay/home mode (all areas).
+    Uses protocol commands optimized for the detected firmware version.
+  fields:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
+      required: false
+      selector:
+        text:
+
+arm_home:
+  name: Arm Home (All Areas)
+  description: |
+    Arm the ECi system in home mode (alias for stay mode, all areas).
+    Uses protocol commands optimized for the detected firmware version.
+  fields:
+    user_code:
+      name: User Code (Optional)
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
       required: false
       selector:
         text:
@@ -128,7 +154,7 @@ disarm:
   fields:
     user_code:
       name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
       required: false
       selector:
         text:
@@ -153,7 +179,7 @@ arm_away_area:
           mode: box
     user_code:
       name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
       required: false
       selector:
         text:
@@ -183,7 +209,7 @@ arm_stay_area:
           mode: box
     user_code:
       name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
       required: false
       selector:
         text:
@@ -213,7 +239,7 @@ arm_home_area:
           mode: box
     user_code:
       name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
       required: false
       selector:
         text:
@@ -242,7 +268,7 @@ disarm_area:
           mode: box
     user_code:
       name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
       required: false
       selector:
         text:
@@ -353,7 +379,7 @@ bulk_arm_areas:
               value: "home"
     user_code:
       name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
       required: false
       selector:
         text:
@@ -389,7 +415,7 @@ bulk_disarm_areas:
         object:
     user_code:
       name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
+      description: Override the configured user PIN (format 'user pin', e.g., '1 123')
       required: false
       selector:
         text:
@@ -423,143 +449,7 @@ emergency_disarm:
   fields:
     master_code:
       name: Master Code
-      description: Master user code for emergency disarm (format: 'user pin', e.g., '99 999999')
+      description: Master user code for emergency disarm (format 'user pin', e.g., '99 999999')
       required: true
       selector:
         text:
-
-# ===== PROTOCOL DETECTION AND DIAGNOSTIC SERVICES =====
-
-detect_protocol_mode:
-  name: Detect Protocol Mode
-  description: Attempt to detect which protocol mode the ECi panel is using
-
-get_firmware_info:
-  name: Get Firmware Information
-  description: Get detailed firmware and protocol information from the ECi panel
-
-test_mode_4_features:
-  name: Test MODE 4 Features
-  description: Test if MODE 4 features are available and working (firmware 10.3.50+)
-
-# ===== ZONE MANAGEMENT SERVICES =====
-
-force_zone_bypass:
-  name: Force Zone Bypass
-  description: Force bypass a zone even if system is armed (if supported by panel)
-  fields:
-    zone_number:
-      name: Zone Number
-      description: Zone to force bypass (1-248 for ECi panels)
-      required: true
-      selector:
-        number:
-          min: 1
-          max: 248
-          mode: box
-
-get_zone_status:
-  name: Get Zone Status
-  description: Get detailed status for a specific zone and fire an event
-  fields:
-    zone_number:
-      name: Zone Number
-      description: Zone to check (1-248 for ECi panels)
-      required: true
-      selector:
-        number:
-          min: 1
-          max: 248
-          mode: box
-
-# ===== DIAGNOSTIC SERVICES =====
-
-send_status_command:
-  name: Send STATUS Command
-  description: Send the STATUS command and log all responses for debugging
-
-ping_panel:
-  name: Ping Panel
-  description: Test connectivity to the ECi panel by sending a simple command
-
-get_panel_info:
-  name: Get Panel Information
-  description: Attempt to retrieve panel version, model, and capability information
-
-# ===== OUTPUT MANAGEMENT SERVICES =====
-
-pulse_output:
-  name: Pulse Output
-  description: Pulse an output for a very short duration (momentary activation)
-  fields:
-    output_number:
-      name: Output Number
-      description: Output to pulse (1-32 for ECi panels)
-      required: true
-      selector:
-        number:
-          min: 1
-          max: 32
-          mode: box
-
-toggle_output:
-  name: Toggle Output
-  description: Toggle an output state (on to off, or off to on)
-  fields:
-    output_number:
-      name: Output Number
-      description: Output to toggle (1-32 for ECi panels)
-      required: true
-      selector:
-        number:
-          min: 1
-          max: 32
-          mode: box
-
-# ===== MODE 4 ENHANCED TIMING SERVICES =====
-
-get_entry_delay_status:
-  name: Get Entry Delay Status (MODE 4)
-  description: |
-    Get current entry delay status for all zones (MODE 4 only).
-    Shows zones currently in entry delay and time remaining.
-
-get_exit_delay_status:
-  name: Get Exit Delay Status (MODE 4)
-  description: |
-    Get current exit delay status for all areas (MODE 4 only).
-    Shows areas currently in exit delay and time remaining.
-
-# ===== MODE 4 USER TRACKING SERVICES =====
-
-get_user_activity:
-  name: Get User Activity (MODE 4)
-  description: |
-    Get information about which users armed/disarmed areas (MODE 4 only).
-    Provides user tracking for audit purposes. PIN (format: 'user pin', e.g., '1 123')
-      required: false
-      selector:
-        text:
-
-arm_stay:
-  name: Arm Stay (All Areas)
-  description: |
-    Arm the ECi system in stay/home mode (all areas).
-    Uses protocol commands optimized for the detected firmware version.
-  fields:
-    user_code:
-      name: User Code (Optional)
-      description: Override the configured user PIN (format: 'user pin', e.g., '1 123')
-      required: false
-      selector:
-        text:
-
-arm_home:
-  name: Arm Home (All Areas)
-  description: |
-    Arm the ECi system in home mode (alias for stay mode, all areas).
-    Uses protocol commands optimized for the detected firmware version.
-  fields:
-    user_code:
-      name: User Code (Optional)
-      description: Override the configured user

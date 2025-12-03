@@ -1,8 +1,8 @@
 {
-  "domain": "arrowhead_eci",
-  "name": "Arrowhead ECi Alarm Panel",
+  "domain": "arrowhead_alarm",
+  "name": "Arrowhead Alarm Panel",
   "version": "2.0.0",
-  "documentation": "https://github.com/thanoskas/arrowhead_eci",
+  "documentation": "https://github.com/thanoskas/arrowhead_alarm",
   "dependencies": [],
   "codeowners": ["@thanoskas"],
   "requirements": [],

@@ -1,8 +1,8 @@
-"""Arrowhead ECi alarm control panel with MODE 4 commands and PIN prompts."""
+"""Arrowhead ECi alarm control panel - MAIN PANEL + INDIVIDUAL AREA PANELS - FIXED VERSION."""
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
@@ -16,6 +16,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
@@ -38,69 +39,190 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Arrowhead ECi alarm control panel with MODE 4 area support."""
+    """Set up Arrowhead ECi alarm control panels - MAIN PANEL + AUTO-DETECTED AREA PANELS."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
     panel_config = hass.data[DOMAIN][config_entry.entry_id]["panel_config"]
     firmware_info = hass.data[DOMAIN][config_entry.entry_id]["firmware_info"]
     
     entities = []
     
-    # Always create the main panel (all areas combined)
+    # Wait for initial data and ensure zones are properly initialized
+    if not coordinator.data:
+        await coordinator.async_request_refresh()
+    
+    # FIXED: Initialize zones from configuration including sealed zones
+    await _ensure_zones_initialized_fixed(coordinator, config_entry)
+    
+    # Get areas - try auto-detection first, then fall back to manual
+    areas_to_create = await _get_areas_for_panels(coordinator, config_entry)
+    _LOGGER.info("Areas for panel creation: %s", areas_to_create)
+    
+    # Create MAIN panel (handles all areas)
+    _LOGGER.info("Creating main ECi alarm control panel for all areas")
     entities.append(
         ArrowheadECiAlarmControlPanel(coordinator, config_entry, panel_config, firmware_info)
     )
     
-    # Wait for initial data to detect areas
-    if not coordinator.data:
-        await coordinator.async_request_refresh()
+    # Create INDIVIDUAL AREA panels for each detected/configured area
+    _LOGGER.info("Creating individual area panels for areas: %s", areas_to_create)
+    for area_number in areas_to_create:
+        _LOGGER.info("Creating individual panel for area %d", area_number)
+        entities.append(
+            ArrowheadECiAreaAlarmControlPanel(
+                coordinator, config_entry, panel_config, firmware_info, area_number
+            )
+        )
     
-    # Create individual area panels for MODE 4 multi-area support
-    if coordinator.data and firmware_info.get("mode_4_active", False):
-        _LOGGER.info("MODE 4 active - checking for multi-area configuration...")
-        
-        # Detect active areas for MODE 4
-        active_areas = set()
-        
-        # Check detected areas from zone detection
-        detected_areas = coordinator.data.get("active_areas_detected", set())
-        if isinstance(detected_areas, (list, tuple)):
-            active_areas.update(detected_areas)
-        elif isinstance(detected_areas, set):
-            active_areas.update(detected_areas)
-        
-        # Check config entry for configured areas
-        config_areas = config_entry.data.get("areas", [])
-        if isinstance(config_areas, (list, tuple)):
-            active_areas.update(config_areas)
-        
-        # Check for area status keys in data
-        for key in coordinator.data.keys():
-            if key.startswith("area_") and key.endswith("_armed"):
-                area_letter = key.split("_")[1]
-                if len(area_letter) == 1 and area_letter.isalpha():
-                    area_number = ord(area_letter) - ord('a') + 1
-                    if area_number <= 32:
-                        active_areas.add(area_number)
-        
-        # Ensure we have at least area 1
-        if not active_areas:
-            active_areas = {1}
-        
-        _LOGGER.info("MODE 4 - Detected active ECi areas: %s", sorted(active_areas))
-        
-        # Create area-specific panels for MODE 4
-        for area in sorted(active_areas):
-            if 1 <= area <= 32:
-                _LOGGER.info("Creating MODE 4 area-specific panel for area %d", area)
-                entities.append(
-                    ArrowheadECiAreaAlarmControlPanel(coordinator, config_entry, panel_config, firmware_info, area)
-                )
-    
-    _LOGGER.info("Created %d ECi alarm control panel entities", len(entities))
+    total_panels = len(entities)
+    _LOGGER.info("Created %d ECi alarm control panel entities: 1 main + %d area panels", 
+                total_panels, total_panels - 1)
     async_add_entities(entities)
 
+
+async def _get_areas_for_panels(coordinator, config_entry: ConfigEntry) -> List[int]:
+    """Get areas for panel creation - auto-detect first, then manual fallback."""
+    try:
+        # First, try to get auto-detected areas from zone detection
+        if coordinator.data and "configured_areas_detected" in coordinator.data:
+            auto_detected_areas = coordinator.data.get("configured_areas_detected", [])
+            if auto_detected_areas:
+                _LOGGER.info("Using auto-detected areas from P4076E1: %s", auto_detected_areas)
+                return sorted(auto_detected_areas)
+        
+        # Check if we have areas from the zone detection process
+        detected_zones_data = config_entry.data.get("detected_zones_data")
+        if detected_zones_data and "configured_areas" in detected_zones_data:
+            auto_detected_areas = detected_zones_data["configured_areas"]
+            if auto_detected_areas:
+                _LOGGER.info("Using auto-detected areas from zone detection: %s", auto_detected_areas)
+                return sorted(auto_detected_areas)
+        
+        # Fallback to manual areas from config
+        manual_areas = _get_manual_areas_from_config(config_entry)
+        _LOGGER.info("Using manual areas from config (fallback): %s", manual_areas)
+        return manual_areas
+        
+    except Exception as err:
+        _LOGGER.error("Error determining areas for panels: %s", err)
+        # Final fallback
+        return [1]
+
+
+async def _ensure_zones_initialized_fixed(coordinator, config_entry: ConfigEntry) -> None:
+    """FIXED: Ensure all configured zones are initialized including sealed zones."""
+    try:
+        # Get zone configuration
+        auto_detect_zones = config_entry.data.get("auto_detect_zones", True)
+        max_zones = config_entry.data.get("max_zones", 16)
+        detected_zones = config_entry.data.get("detected_zones", [])
+        sealed_zones = config_entry.data.get("sealed_zones", [])  # FIXED: Get sealed zones
+        
+        _LOGGER.info("FIXED zone initialization: auto_detect=%s, max_zones=%d, detected=%s, sealed=%s", 
+                    auto_detect_zones, max_zones, detected_zones, sealed_zones)
+        
+        # Determine which zones to initialize
+        if auto_detect_zones and detected_zones:
+            # Use detected zones
+            zones_to_init = set(detected_zones)
+            _LOGGER.info("Using detected zones: %s", sorted(zones_to_init))
+        else:
+            # Use manual zone range
+            zones_to_init = set(range(1, max_zones + 1))
+            _LOGGER.info("Using manual zone range 1-%d: %s", max_zones, sorted(zones_to_init))
+        
+        # Initialize zones in coordinator data if not present
+        if coordinator.data is None:
+            coordinator.data = {}
+        
+        # FIXED: Ensure all zone dictionaries exist with all configured zones
+        zone_keys = ["zones", "zone_alarms", "zone_troubles", "zone_bypassed", "zone_sealed"]  # Added zone_sealed
+        
+        for zone_key in zone_keys:
+            if zone_key not in coordinator.data:
+                coordinator.data[zone_key] = {}
+            
+            # Add missing zones with appropriate default state
+            for zone_id in zones_to_init:
+                if zone_id not in coordinator.data[zone_key]:
+                    # FIXED: Set proper default for sealed zones
+                    if zone_key == "zone_sealed":
+                        default_value = zone_id in sealed_zones
+                    else:
+                        default_value = False
+                    
+                    coordinator.data[zone_key][zone_id] = default_value
+                    _LOGGER.debug("Initialized %s[%d] = %s", zone_key, zone_id, default_value)
+        
+        # FIXED: Log sealed zone initialization
+        if sealed_zones:
+            _LOGGER.info("Initialized %d sealed zones: %s", len(sealed_zones), sorted(sealed_zones))
+        
+        _LOGGER.info("Zone initialization complete: %d zones initialized", len(zones_to_init))
+        _LOGGER.info("Zones: %s", sorted(coordinator.data.get("zones", {}).keys()))
+        _LOGGER.info("Sealed zones: %s", sorted([z for z, sealed in coordinator.data.get("zone_sealed", {}).items() if sealed]))
+        
+        # Initialize areas - try auto-detected first, then manual
+        areas_for_init = await _get_areas_for_panels(coordinator, config_entry)
+        active_areas_detected = set(areas_for_init)
+        coordinator.data["active_areas_detected"] = active_areas_detected
+        coordinator.data["configured_areas_detected"] = areas_for_init
+        
+        # Initialize area status
+        for area in areas_for_init:
+            area_letter = chr(96 + area)  # a, b, c, etc.
+            area_keys = [
+                f"area_{area_letter}_armed",
+                f"area_{area_letter}_armed_by_user", 
+                f"area_{area_letter}_alarm"
+            ]
+            for area_key in area_keys:
+                if area_key not in coordinator.data:
+                    coordinator.data[area_key] = False if not area_key.endswith("_by_user") else None
+                    
+        _LOGGER.info("Area initialization complete: areas %s", areas_for_init)
+        
+    except Exception as err:
+        _LOGGER.error("Error ensuring zones initialized: %s", err)
+        # Fallback initialization
+        if coordinator.data is None:
+            coordinator.data = {}
+        
+        # Minimum fallback - zones 1-16
+        fallback_zones = set(range(1, 17))
+        for zone_key in ["zones", "zone_alarms", "zone_troubles", "zone_bypassed", "zone_sealed"]:
+            if zone_key not in coordinator.data:
+                coordinator.data[zone_key] = {}
+            for zone_id in fallback_zones:
+                if zone_id not in coordinator.data[zone_key]:
+                    coordinator.data[zone_key][zone_id] = False
+        
+        _LOGGER.info("Fallback zone initialization: zones 1-16")
+
+
+def _get_manual_areas_from_config(config_entry: ConfigEntry) -> list:
+    """Get manually configured areas from config entry."""
+    areas = config_entry.data.get("areas", [1])
+    
+    if isinstance(areas, str):
+        # Parse string format "1,2,3"
+        try:
+            areas = [int(x.strip()) for x in areas.split(",") if x.strip().isdigit()]
+        except (ValueError, AttributeError):
+            areas = [1]
+    elif not isinstance(areas, list):
+        areas = [1]
+    
+    # Ensure valid areas
+    valid_areas = [area for area in areas if isinstance(area, int) and 1 <= area <= 32]
+    if not valid_areas:
+        valid_areas = [1]
+        
+    _LOGGER.debug("Manual areas parsed: %s", valid_areas)
+    return valid_areas
+
+
 class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
-    """ECi Panel with MODE 4 ARMAREA/STAYAREA commands and PIN prompts."""
+    """ECi Main Panel managing all areas with MODE 4 ARMAREA/STAYAREA commands."""
 
     def __init__(
         self,
@@ -109,7 +231,7 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         panel_config: Dict[str, Any],
         firmware_info: Dict[str, Any],
     ) -> None:
-        """Initialize the ECi alarm control panel."""
+        """Initialize the ECi main alarm control panel."""
         super().__init__(coordinator)
         self._config_entry = config_entry
         self._panel_config = panel_config
@@ -176,24 +298,26 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             self._update_arming_state("arming")
             return AlarmControlPanelState.PENDING
             
-        # Check armed states - check if ANY area is armed
-        area_armed = False
+        # Check armed states - check if ANY manual area is armed
+        any_area_armed = False
         stay_mode = False
         
-        # Check up to 32 areas for ECi
-        for i in range(1, 33):
-            area_key = f"area_{chr(96 + i)}_armed"
+        # Check manual areas only
+        manual_areas = data.get("active_areas_detected", {1})
+        for area in manual_areas:
+            area_letter = chr(96 + area)  # a, b, c, etc.
+            area_key = f"area_{area_letter}_armed"
             if data.get(area_key, False):
-                area_armed = True
+                any_area_armed = True
                 break
         
         # Also check general armed state for compatibility
-        if not area_armed:
-            area_armed = data.get("armed", False)
+        if not any_area_armed:
+            any_area_armed = data.get("armed", False)
             
         stay_mode = data.get("stay_mode", False)
         
-        if area_armed:
+        if any_area_armed:
             self._update_arming_state("armed")
             if stay_mode:
                 return AlarmControlPanelState.ARMED_HOME
@@ -210,7 +334,7 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             old_state = self._arming_state
             self._arming_state = new_state
             
-            _LOGGER.debug("ECi MODE 4 arming state changed: %s -> %s", old_state, new_state)
+            _LOGGER.debug("ECi arming state changed: %s -> %s", old_state, new_state)
             
             if new_state == "arming":
                 self._start_arming_sequence()
@@ -224,11 +348,11 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             if area_exit_delays:
                 self._exit_delay_seconds = max(area_exit_delays.values())
             
-        self._arming_start_time = datetime.now()
+        self._arming_start_time = dt_util.utcnow()
         self._arming_progress = 0
         self._arming_time_remaining = self._exit_delay_seconds
         
-        _LOGGER.info("Starting ECi MODE 4 arming sequence with %d second delay", self._exit_delay_seconds)
+        _LOGGER.info("Starting ECi arming sequence with %d second delay", self._exit_delay_seconds)
         
         self._arming_cancel_listener = async_track_time_interval(
             self.hass,
@@ -252,7 +376,8 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         if not self._arming_start_time:
             return
             
-        elapsed = (now - self._arming_start_time).total_seconds()
+        current_time = dt_util.utcnow()
+        elapsed = (current_time - self._arming_start_time).total_seconds()
         self._arming_time_remaining = max(0, self._exit_delay_seconds - elapsed)
         self._arming_progress = min(100, (elapsed / self._exit_delay_seconds) * 100)
         
@@ -270,11 +395,20 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         data = self.coordinator.data
         zones = data.get("zones", {})
         zone_alarms = data.get("zone_alarms", {})
+        zone_sealed = data.get("zone_sealed", {})  # FIXED: Add sealed zones
         outputs = data.get("outputs", {})
         
         active_zones = [zone_id for zone_id, state in zones.items() if state]
         alarm_zones = [zone_id for zone_id, state in zone_alarms.items() if state]
+        sealed_zones = [zone_id for zone_id, state in zone_sealed.items() if state]  # FIXED
         active_outputs = [output_id for output_id, state in outputs.items() if state]
+        
+        # Get manual areas
+        manual_areas = data.get("active_areas_detected", {1})
+        if isinstance(manual_areas, set):
+            manual_areas = sorted(list(manual_areas))
+        elif not isinstance(manual_areas, list):
+            manual_areas = [1]
         
         attributes = {
             ATTR_READY_TO_ARM: data.get("ready_to_arm", False),
@@ -282,14 +416,18 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             ATTR_BATTERY_STATUS: data.get("battery_ok", True),
             ATTR_PROTOCOL_MODE: self._protocol_mode,
             ATTR_FIRMWARE_VERSION: self._firmware_version,
-            "mode_4_only": True,
+            ATTR_ACTIVE_AREAS: manual_areas,
+            "configuration_type": "auto_zones_manual_areas",
             "status_message": data.get("status_message", "Unknown"),
             "connection_state": data.get("connection_state", "unknown"),
             "active_zones": active_zones,
             "alarm_zones": alarm_zones,
+            "sealed_zones": sealed_zones,  # FIXED: Include sealed zones
             "active_outputs": active_outputs,
             "total_zones_configured": len(zones),
+            "total_sealed_zones": len(sealed_zones),  # FIXED: Count sealed zones
             "total_outputs_configured": len(outputs),
+            "manual_areas_count": len(manual_areas),
             
             # Arming effects
             "arming_state": self._arming_state,
@@ -305,8 +443,6 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
                 "uses_armarea_commands": True,
                 "uses_stayarea_commands": True,
                 "requires_pin_for_disarm": True,
-                "p74e_configured": data.get("areas_configured_p74e", False),
-                "p76e_configured": data.get("areas_configured_p76e", False),
             })
             
             # Keypad alarm status
@@ -329,27 +465,17 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
                 attributes["areas_in_exit_delay"] = list(area_exit_delays.keys())
                 attributes["max_exit_delay_remaining"] = max(area_exit_delays.values())
                 
-        # Add area status for all 32 possible areas
+        # Add area status for manual areas only
         area_status = {}
-        for i in range(1, 33):
-            area_key = f"area_{chr(96 + i)}_armed"
+        for area in manual_areas:
+            area_letter = chr(96 + area)  # a, b, c, etc.
+            area_key = f"area_{area_letter}_armed"
             if area_key in data:
-                area_status[f"area_{i}"] = data[area_key]
+                area_status[f"area_{area}"] = data[area_key]
         
         if area_status:
             attributes["area_armed_status"] = area_status
             
-        # Add zone-area mapping
-        zones_in_areas = data.get("zones_in_areas", {})
-        if zones_in_areas:
-            serializable_zones = {}
-            for area, zone_set in zones_in_areas.items():
-                if isinstance(zone_set, set):
-                    serializable_zones[str(area)] = sorted(list(zone_set))
-                else:
-                    serializable_zones[str(area)] = zone_set
-            attributes["zones_in_areas"] = serializable_zones
-        
         return attributes
 
     @property
@@ -376,8 +502,8 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             return "mdi:shield-star-outline"  # MODE 4 disarmed icon
 
     async def async_alarm_disarm(self, code: Optional[str] = None) -> None:
-        """Send disarm command - ALWAYS requires PIN."""
-        _LOGGER.info("Disarming ECi with MODE 4 commands (PIN required)")
+        """Send disarm command - user must specify user number if not user 1."""
+        _LOGGER.info("Disarming ECi main panel")
         
         # Validate PIN is provided
         if not code:
@@ -388,170 +514,103 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             self._stop_arming_sequence()
             _LOGGER.info("ECi arming sequence cancelled by disarm command")
         
-        # Use disarm_with_pin method that requires user PIN format
         try:
-            # The code should be in format "user pin" (e.g., "1 123")
-            # If user provides just a PIN, prepend with default user number
-            if ' ' not in code:
-                # Assume user 1 if no user number provided
-                formatted_pin = f"1 {code}"
-                _LOGGER.info("PIN provided without user number, using user 1")
-            else:
-                formatted_pin = code
+            code_stripped = code.strip()
             
-            success = await self.coordinator.client.disarm_with_pin(formatted_pin)
+            if ' ' not in code_stripped:
+                # Just PIN provided - assume user 1
+                formatted_command = f"1 {code_stripped}"
+                _LOGGER.info("PIN only provided, assuming user 1: DISARM %s", formatted_command)
+            else:
+                # User number and PIN provided - use as-is
+                parts = code_stripped.split(' ', 1)
+                if len(parts) != 2:
+                    raise ServiceValidationError("Invalid format. Use 'PIN' for user 1 or 'USER PIN' for other users")
+                
+                user_num, pin = parts
+                try:
+                    user_number = int(user_num)
+                    if not (1 <= user_number <= 2000):
+                        raise ServiceValidationError("User number must be between 1 and 2000")
+                except ValueError:
+                    raise ServiceValidationError("User number must be a valid integer")
+                
+                formatted_command = f"{user_number} {pin}"
+                _LOGGER.info("User %d specified: DISARM %s", user_number, formatted_command)
+            
+            success = await self.coordinator.client.disarm_with_pin(formatted_command)
             
             if not success:
                 _LOGGER.error("Failed to disarm ECi panel")
-                raise ServiceValidationError("Disarm command failed - check PIN and user number")
+                raise ServiceValidationError("Disarm command failed - check user number and PIN")
                 
         except Exception as err:
             _LOGGER.error("Error during disarm: %s", err)
             raise ServiceValidationError(f"Disarm failed: {str(err)}")
 
     async def async_alarm_arm_away(self, code: Optional[str] = None) -> None:
-        """Send arm away command using ARMAREA (MODE 4)."""
-        _LOGGER.info("Arming ECi (away mode) using MODE 4 ARMAREA commands")
+        """Send arm away command using ARMAWAY (main panel command)."""
+        _LOGGER.info("Arming ECi main panel (away mode) using ARMAWAY command")
         
         # Start arming sequence immediately for UI feedback
         self._update_arming_state("arming")
         self.async_write_ha_state()
         
         try:
-            # Get active areas and arm them all using ARMAREA
-            success = await self._arm_all_areas_away()
+            # Use simple ARMAWAY command for main panel
+            success = await self.coordinator.client.send_main_panel_armaway()
             
             if not success:
-                _LOGGER.error("Failed to arm ECi (away mode)")
+                _LOGGER.error("Failed to arm ECi main panel (away mode)")
                 self._stop_arming_sequence()
                 self._update_arming_state("idle")
                 self.async_write_ha_state()
                 
         except Exception as err:
-            _LOGGER.error("Error during arm away: %s", err)
+            _LOGGER.error("Error during main panel arm away: %s", err)
             self._stop_arming_sequence()
             self._update_arming_state("idle")
             self.async_write_ha_state()
 
     async def async_alarm_arm_home(self, code: Optional[str] = None) -> None:
-        """Send arm home command using STAYAREA (MODE 4)."""
-        _LOGGER.info("Arming ECi (stay mode) using MODE 4 STAYAREA commands")
+        """Send arm home command using ARMSTAY (main panel command)."""
+        _LOGGER.info("Arming ECi main panel (stay mode) using ARMSTAY command")
         
         # Start arming sequence immediately for UI feedback
         self._update_arming_state("arming")
         self.async_write_ha_state()
         
         try:
-            # Get active areas and arm them all using STAYAREA
-            success = await self._arm_all_areas_stay()
+            # Use simple ARMSTAY command for main panel
+            success = await self.coordinator.client.send_main_panel_armstay()
             
             if not success:
-                _LOGGER.error("Failed to arm ECi (stay mode)")
+                _LOGGER.error("Failed to arm ECi main panel (stay mode)")
                 self._stop_arming_sequence()
                 self._update_arming_state("idle")
                 self.async_write_ha_state()
                 
         except Exception as err:
-            _LOGGER.error("Error during arm stay: %s", err)
+            _LOGGER.error("Error during main panel arm stay: %s", err)
             self._stop_arming_sequence()
             self._update_arming_state("idle")
             self.async_write_ha_state()
 
-    async def _arm_all_areas_away(self) -> bool:
-        """Arm all active areas using ARMAREA commands."""
-        try:
-            # Get active areas from coordinator data or config
-            active_areas = self._get_active_areas()
-            
-            _LOGGER.info("Arming areas %s using ARMAREA commands", active_areas)
-            
-            success_count = 0
-            for area in active_areas:
-                try:
-                    success = await self.coordinator.client.arm_away_area(area)
-                    if success:
-                        success_count += 1
-                    await asyncio.sleep(0.5)  # Small delay between commands
-                except Exception as err:
-                    _LOGGER.error("Error arming area %d: %s", area, err)
-            
-            overall_success = success_count == len(active_areas)
-            _LOGGER.info("ARMAREA results: %d/%d areas armed successfully", success_count, len(active_areas))
-            
-            return overall_success
-            
-        except Exception as err:
-            _LOGGER.error("Error in _arm_all_areas_away: %s", err)
-            return False
-
-    async def _arm_all_areas_stay(self) -> bool:
-        """Arm all active areas using STAYAREA commands."""
-        try:
-            # Get active areas from coordinator data or config
-            active_areas = self._get_active_areas()
-            
-            _LOGGER.info("Arming areas %s using STAYAREA commands", active_areas)
-            
-            success_count = 0
-            for area in active_areas:
-                try:
-                    success = await self.coordinator.client.arm_stay_area(area)
-                    if success:
-                        success_count += 1
-                    await asyncio.sleep(0.5)  # Small delay between commands
-                except Exception as err:
-                    _LOGGER.error("Error stay arming area %d: %s", area, err)
-            
-            overall_success = success_count == len(active_areas)
-            _LOGGER.info("STAYAREA results: %d/%d areas armed successfully", success_count, len(active_areas))
-            
-            return overall_success
-            
-        except Exception as err:
-            _LOGGER.error("Error in _arm_all_areas_stay: %s", err)
-            return False
-
-    def _get_active_areas(self) -> list:
-        """Get list of active areas from coordinator data or configuration."""
-        active_areas = []
-        
-        # Method 1: From coordinator data (zones_in_areas)
-        if self.coordinator.data:
-            zones_in_areas = self.coordinator.data.get("zones_in_areas", {})
-            active_areas.extend(zones_in_areas.keys())
-        
-        # Method 2: From config entry
-        config_areas = self._config_entry.data.get("areas", [])
-        if isinstance(config_areas, (list, tuple)):
-            active_areas.extend(config_areas)
-        
-        # Method 3: From status keys in coordinator data
-        if self.coordinator.data:
-            for key in self.coordinator.data.keys():
-                if key.startswith("area_") and key.endswith("_armed"):
-                    area_letter = key.split("_")[1]
-                    if len(area_letter) == 1 and area_letter.isalpha():
-                        area_number = ord(area_letter) - ord('a') + 1
-                        if 1 <= area_number <= 32:
-                            active_areas.append(area_number)
-        
-        # Remove duplicates and sort
-        active_areas = sorted(set(active_areas))
-        
-        # Default to area 1 if nothing found
-        if not active_areas:
-            active_areas = [1]
-        
-        return active_areas
+    def _get_manual_areas(self) -> list:
+        """Get manually configured areas from config entry."""
+        return _get_manual_areas_from_config(self._config_entry)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         if self.coordinator.data:
-            # Check for any area armed state
+            # Check for any manual area armed state
+            manual_areas = self._get_manual_areas()
             any_area_armed = False
-            for i in range(1, 33):
-                area_key = f"area_{chr(96 + i)}_armed"
+            
+            for area in manual_areas:
+                area_letter = chr(96 + area)  # a, b, c, etc.
+                area_key = f"area_{area_letter}_armed"
                 if self.coordinator.data.get(area_key, False):
                     any_area_armed = True
                     break
@@ -645,11 +704,8 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
         
         # Check for alarm condition in this area
         if data.get("alarm", False):
-            area_zones = self._get_area_zones()
-            alarm_zones = [zone_id for zone_id, state in data.get("zone_alarms", {}).items() if state]
-            if any(zone in area_zones for zone in alarm_zones):
-                self._update_arming_state("alarm")
-                return AlarmControlPanelState.TRIGGERED
+            self._update_arming_state("alarm")
+            return AlarmControlPanelState.TRIGGERED
         
         # MODE 4: Check for area-specific alarm state
         if self._mode_4_active:
@@ -658,11 +714,9 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
                 self._update_arming_state("alarm")
                 return AlarmControlPanelState.TRIGGERED
                 
-            # Check for entry delay in this area's zones
+            # Check for entry delay affecting this area
             zone_entry_delays = data.get("zone_entry_delays", {})
-            area_zones = self._get_area_zones()
-            area_entry_delays = {z: zone_entry_delays.get(z, 0) for z in area_zones if z in zone_entry_delays}
-            if area_entry_delays:
+            if zone_entry_delays:
                 self._update_arming_state("entry_delay")
                 return AlarmControlPanelState.PENDING
         
@@ -687,21 +741,6 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
         area_letter = chr(96 + self._area_number)  # a, b, c, etc.
         return f"area_{area_letter}_armed"
 
-    def _get_area_zones(self) -> list:
-        """Get zones assigned to this area."""
-        if not self.coordinator.data:
-            return []
-        
-        zones_in_areas = self.coordinator.data.get("zones_in_areas", {})
-        area_zones = zones_in_areas.get(self._area_number, [])
-        
-        if isinstance(area_zones, set):
-            return list(area_zones)
-        elif isinstance(area_zones, list):
-            return area_zones
-        else:
-            return []
-
     def _update_arming_state(self, new_state: str):
         """Update arming state for this area."""
         if self._arming_state != new_state:
@@ -720,7 +759,7 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
             if area_delay:
                 self._exit_delay_seconds = area_delay
         
-        self._arming_start_time = datetime.now()
+        self._arming_start_time = dt_util.utcnow()
         self._arming_progress = 0
         self._arming_time_remaining = self._exit_delay_seconds
         
@@ -746,7 +785,8 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
         if not self._arming_start_time:
             return
             
-        elapsed = (now - self._arming_start_time).total_seconds()
+        current_time = dt_util.utcnow()
+        elapsed = (current_time - self._arming_start_time).total_seconds()
         self._arming_time_remaining = max(0, self._exit_delay_seconds - elapsed)
         self._arming_progress = min(100, (elapsed / self._exit_delay_seconds) * 100)
         
@@ -769,9 +809,62 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
         else:
             return f"mdi:shield-star-outline"
 
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return (
+            self.coordinator.last_update_success and
+            self.coordinator.data is not None and
+            self.coordinator.data.get("connection_state") == "connected"
+        )
+
+    @property
+    def extra_state_attributes(self) -> Dict[str, Any]:
+        """Return extra state attributes for this area."""
+        if not self.coordinator.data:
+            return {}
+            
+        data = self.coordinator.data
+        
+        attributes = {
+            "area_number": self._area_number,
+            "ready_to_arm": data.get("ready_to_arm", True),
+            "protocol_mode": self._protocol_mode,
+            "firmware_version": self._firmware_version,
+            "mode_4_active": self._mode_4_active,
+            
+            # Arming effects for this area
+            "arming_state": self._arming_state,
+            "arming_progress": self._arming_progress,
+            "arming_time_remaining": self._arming_time_remaining,
+            "exit_delay_seconds": self._exit_delay_seconds,
+        }
+        
+        # MODE 4 specific attributes for this area
+        if self._mode_4_active:
+            area_letter = chr(96 + self._area_number)
+            
+            # Area-specific user tracking
+            area_user_key = f"area_{area_letter}_armed_by_user"
+            if area_user_key in data:
+                attributes["armed_by_user"] = data[area_user_key]
+            
+            # Area-specific exit delay
+            area_exit_delays = data.get("area_exit_delays", {})
+            if self._area_number in area_exit_delays:
+                attributes["area_exit_delay_remaining"] = area_exit_delays[self._area_number]
+            
+            # Entry delays for zones (general)
+            zone_entry_delays = data.get("zone_entry_delays", {})
+            if zone_entry_delays:
+                attributes["zone_entry_delays"] = zone_entry_delays
+                attributes["max_entry_delay_remaining"] = max(zone_entry_delays.values())
+        
+        return attributes
+
     async def async_alarm_disarm(self, code: Optional[str] = None) -> None:
-        """Send disarm command for this area - ALWAYS requires PIN."""
-        _LOGGER.info("Disarming ECi area %d with MODE 4 commands (PIN required)", self._area_number)
+        """Send disarm command - user must specify user number if not user 1."""
+        _LOGGER.info("Disarming ECi area %d", self._area_number)
         
         # Validate PIN is provided
         if not code:
@@ -782,31 +875,49 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
             self._stop_arming_sequence()
         
         try:
-            # Format PIN properly
-            if ' ' not in code:
-                formatted_pin = f"1 {code}"
-            else:
-                formatted_pin = code
+            code_stripped = code.strip()
             
-            success = await self.coordinator.client.disarm_with_pin(formatted_pin)
+            if ' ' not in code_stripped:
+                # Just PIN provided - assume user 1
+                formatted_command = f"1 {code_stripped}"
+                _LOGGER.info("PIN only provided, assuming user 1: DISARM %s", formatted_command)
+            else:
+                # User number and PIN provided - use as-is
+                parts = code_stripped.split(' ', 1)
+                if len(parts) != 2:
+                    raise ServiceValidationError("Invalid format. Use 'PIN' for user 1 or 'USER PIN' for other users")
+                
+                user_num, pin = parts
+                try:
+                    user_number = int(user_num)
+                    if not (1 <= user_number <= 2000):
+                        raise ServiceValidationError("User number must be between 1 and 2000")
+                except ValueError:
+                    raise ServiceValidationError("User number must be a valid integer")
+                
+                formatted_command = f"{user_number} {pin}"
+                _LOGGER.info("User %d specified: DISARM %s", user_number, formatted_command)
+            
+            success = await self.coordinator.client.disarm_with_pin(formatted_command)
             
             if not success:
-                raise ServiceValidationError("Disarm command failed - check PIN and user number")
+                raise ServiceValidationError("Disarm command failed - check user number and PIN")
                 
         except Exception as err:
             raise ServiceValidationError(f"Disarm failed: {str(err)}")
 
     async def async_alarm_arm_away(self, code: Optional[str] = None) -> None:
         """Send arm away command for this area using ARMAREA."""
-        _LOGGER.info("Arming ECi area %d (away mode) using ARMAREA command", self._area_number)
+        _LOGGER.info("Arming ECi area %d (away mode) using ARMAREA %d command", self._area_number, self._area_number)
         
         self._update_arming_state("arming")
         self.async_write_ha_state()
         
         try:
-            success = await self.coordinator.client.arm_away_area(self._area_number)
+            success = await self.coordinator.client.send_armarea_command(self._area_number)
             
             if not success:
+                _LOGGER.error("Failed to arm area %d away", self._area_number)
                 self._stop_arming_sequence()
                 self._update_arming_state("idle")
                 self.async_write_ha_state()
@@ -819,15 +930,16 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
 
     async def async_alarm_arm_home(self, code: Optional[str] = None) -> None:
         """Send arm home command for this area using STAYAREA."""
-        _LOGGER.info("Arming ECi area %d (stay mode) using STAYAREA command", self._area_number)
+        _LOGGER.info("Arming ECi area %d (stay mode) using STAYAREA %d command", self._area_number, self._area_number)
         
         self._update_arming_state("arming")
         self.async_write_ha_state()
         
         try:
-            success = await self.coordinator.client.arm_stay_area(self._area_number)
+            success = await self.coordinator.client.send_stayarea_command(self._area_number)
             
             if not success:
+                _LOGGER.error("Failed to arm area %d stay", self._area_number)
                 self._stop_arming_sequence()
                 self._update_arming_state("idle")
                 self.async_write_ha_state()
@@ -854,12 +966,10 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
             # MODE 4: Check for area-specific entry delay states
             if self._mode_4_active:
                 zone_entry_delays = self.coordinator.data.get("zone_entry_delays", {})
-                area_zones = self._get_area_zones()
-                area_entry_delays = {z: zone_entry_delays.get(z, 0) for z in area_zones if z in zone_entry_delays}
                 
-                if area_entry_delays and self._arming_state != "entry_delay":
+                if zone_entry_delays and self._arming_state != "entry_delay":
                     self._update_arming_state("entry_delay")
-                elif not area_entry_delays and self._arming_state == "entry_delay":
+                elif not zone_entry_delays and self._arming_state == "entry_delay":
                     if area_armed:
                         self._update_arming_state("armed")
                     else:

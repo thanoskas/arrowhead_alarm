@@ -9,7 +9,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.config_entries import ConfigEntry
 
 from .const import DOMAIN
-from .coordinator import ArrowheadDataUpdateCoordinator
+from .coordinator import ArrowheadECiDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class ArrowheadZoneBypassButton(CoordinatorEntity, ButtonEntity):
 
     def __init__(
         self,
-        coordinator: ArrowheadDataUpdateCoordinator,
+        coordinator: ArrowheadECiDataUpdateCoordinator,
         config_entry: ConfigEntry,
         panel_config: Dict[str, Any],
         zone_id: int,
@@ -138,8 +138,8 @@ class ArrowheadZoneBypassButton(CoordinatorEntity, ButtonEntity):
             
             # Add expander information for ECi panels
             if self.coordinator.data.get("panel_type") == "eci":
-                from .const import detect_expander_from_zone, PANEL_TYPE_ECI
-                expander = detect_expander_from_zone(self._zone_id, PANEL_TYPE_ECI)
+                from .const import detect_expander_from_zone
+                expander = detect_expander_from_zone(self._zone_id)
                 attributes["expander"] = expander
                 
             # Add bypass status summary

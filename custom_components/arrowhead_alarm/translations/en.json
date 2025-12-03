@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "🏠 Arrowhead ECi Alarm Panel Setup",
-        "description": "Connect to your Arrowhead ECi Series alarm panel.\n\n🔹 **ECi Series Features:**\n• Up to 248 zones with automatic detection\n• Up to 32 areas for complex installations\n• Up to 32 outputs for automation\n• MODE 4 enhanced features (firmware 10.3.50+)\n• Dynamic zone and area configuration\n\n💡 **MODE 4 Benefits:** Enhanced area commands, keypad alarms, user tracking, and precise timing information.",
+        "description": "Connect to your Arrowhead ECi Series alarm panel.\n\n🔹 **ECi Series Features:**\n• Automatic zone detection\n• Manual area configuration (user specified)\n• Up to 32 outputs for automation\n• MODE 4 enhanced features (firmware 10.3.50+)\n\n💡 **Setup Approach:** Zones are detected automatically, but you specify which areas you use for maximum reliability.",
         "data": {
           "host": "IP Address",
           "port": "Port Number",
@@ -20,19 +20,19 @@
         }
       },
       "zone_config": {
-        "title": "🏡 Configure Zones for Your ECi Panel",
-        "description": "Set up zone monitoring for your ECi panel with automatic detection.\n\n📊 **Detection Results:**\n• Firmware: {firmware_status}\n• Protocol: {protocol_mode_info}\n• Zones detected: {detected_zones}\n• Areas found: {detected_areas}\n• Highest zone: {max_detected}\n• Status: {detection_status}\n\n💡 **Recommendation:** Enable auto-detection for best results. The ECi panel can automatically discover your zone and area configuration.",
+        "title": "🏡 Configure Zones and Areas",
+        "description": "Configure your ECi panel with automatic zone detection and manual area specification.\n\n📊 **Zone Detection Results:**\n• Firmware: {firmware_status}\n• Zones detected: {detected_zones}\n• Highest zone: {max_detected}\n• Status: {detection_status}\n\n⚠️ **Manual Area Configuration Required:**\n{area_instruction}\n\n💡 **Why Manual Areas?** Area auto-detection can be unreliable and cause issues. You know your system best!",
         "data": {
-          "auto_detect_zones": "🔍 Auto-detect zones and areas",
-          "max_zones": "📊 Maximum zones to monitor",
-          "areas": "🏠 Active areas (comma-separated)",
+          "auto_detect_zones": "🔍 Auto-detect zones",
+          "max_zones": "📊 Maximum zones (override)",
+          "areas": "🏠 Active areas (manual, required)",
           "configure_zone_names": "🏷️ Customize zone names"
         },
         "data_description": {
-          "auto_detect_zones": "Automatically detect active zones and areas from your ECi panel's configuration using P4076E1 and P4075Ex queries",
-          "max_zones": "Override the maximum zone number to monitor (8-248 zones for ECi panels)",
-          "areas": "Specify which areas are active (leave empty for auto-detection). ECi panels support up to 32 areas.",
-          "configure_zone_names": "Set custom names for your zones instead of 'Zone 001', 'Zone 002', etc."
+          "auto_detect_zones": "Automatically detect zones from your ECi panel's configuration using status parsing",
+          "max_zones": "Override detected zone limit if needed (8-248 for ECi panels)",
+          "areas": "Specify which areas are active (e.g., '1' for single area, '1,2,3' for multiple) - REQUIRED",
+          "configure_zone_names": "Set custom names for detected zones instead of 'Zone 001', etc."
         }
       },
       "zone_names": {
@@ -43,7 +43,7 @@
         }
       },
       "output_config": {
-        "title": "⚡ Configure Outputs for Your ECi Panel",
+        "title": "⚡ Configure Outputs",
         "description": "Set how many outputs to manage with Home Assistant.\n\n📊 **ECi Panel Specifications:**\n• Standard outputs: 4 (main panel)\n• Maximum supported: 32 (with expanders)\n• Compatible with: Lights, sirens, door locks, garage doors, and other relay-controlled devices\n\n{mode_4_features}\n\n💡 **Note:** You can control any device connected to your ECi panel's output terminals through Home Assistant.",
         "data": {
           "max_outputs": "⚡ Number of outputs"
@@ -71,14 +71,14 @@
     "step": {
       "init": {
         "title": "Arrowhead ECi Panel Options",
-        "description": "Adjust settings for your ECi Series panel.\n\n{mode_4_info}",
+        "description": "Adjust settings for your ECi Series panel.\n\n⚠️ **Areas Configuration:** Areas are manually specified during setup. Change carefully as this affects which areas Home Assistant monitors.\n\n{mode_4_info}",
         "data": {
           "scan_interval": "Update interval (seconds)",
           "timeout": "Communication timeout (seconds)",
           "enable_debug_logging": "Enable debug logging",
-          "auto_detect_zones": "Auto-detect zones and areas",
+          "auto_detect_zones": "Auto-detect zones",
           "max_zones": "Maximum zones to monitor",
-          "areas": "Active areas",
+          "areas": "Active areas (manual, required)",
           "max_outputs": "Number of outputs",
           "configure_zone_names": "Configure zone names"
         },
@@ -86,9 +86,9 @@
           "scan_interval": "How often to poll the ECi panel for status updates (10-300 seconds)",
           "timeout": "Maximum time to wait for panel responses (5-60 seconds)",
           "enable_debug_logging": "Enable detailed logging for troubleshooting issues",
-          "auto_detect_zones": "Automatically detect zones and areas from ECi panel configuration using P4076E1/P4075Ex queries",
+          "auto_detect_zones": "Automatically detect zones from ECi panel configuration using status parsing",
           "max_zones": "Maximum zone number to monitor (8-248 for ECi panels)",
-          "areas": "Active areas as comma-separated numbers (1-32 for ECi panels)",
+          "areas": "Active areas as comma-separated numbers (1-32 for ECi panels) - REQUIRED MANUAL INPUT",
           "max_outputs": "How many outputs to create switches for (1-32 for ECi panels)",
           "configure_zone_names": "Set custom names for your zones"
         }
