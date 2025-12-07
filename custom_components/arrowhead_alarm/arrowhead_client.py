@@ -1,4 +1,41 @@
-"""Enhanced ECi client - FINAL CORRECTED VERSION."""
+"""Enhanced ECi client - FINAL CORRECTED VERSION.
+
+TWO-TIER AREA CONTROL SYSTEM:
+==============================
+
+MAIN PANEL ENTITY (alarm_control_panel.arrowhead_eci_series):
+- Uses simple ARMAWAY / ARMSTAY commands (MODE 4)
+- Controls ALL configured areas simultaneously
+- Example: ARMAWAY → Arms Area 1, Area 2, Area 3 all together
+- DISARM: Uses MODE 4 format (DISARM user# pin) → Disarms ALL areas
+
+AREA-SPECIFIC ENTITIES (alarm_control_panel.arrowhead_eci_series_area_1, etc):
+- ARM: Uses MODE 4 commands (ARMAREA x / STAYAREA x)
+  * Controls ONLY the specified area
+  * Example: ARMAREA 1 → Arms ONLY Area 1
+  * Requires P74E (away) and P76E (stay) to be configured in panel
+  
+- DISARM: Uses MODE 2 temporarily (DISARM area# pin)
+  * Switches to MODE 2, disarms specific area, switches back to MODE 4
+  * Example: DISARM 1 1234 (in MODE 2) → Disarms ONLY Area 1
+  * Automatic mode switching ensures correct operation
+
+DISARM BEHAVIOR:
+================
+MODE 4 (Main Panel):
+- DISARM x pin → x = user number (1-2000), disarms ALL areas
+- Example: DISARM 1 1234 → User 1 disarms all areas
+
+MODE 2 (Area-Specific):
+- DISARM x pin → x = area number (1-32), disarms ONLY that area
+- Example: DISARM 1 1234 → Disarms Area 1 only
+- Client handles MODE 2/4 switching automatically
+
+PANEL CONFIGURATION REQUIRED:
+- P74E = Areas that can be armed away individually
+- P76E = Areas that can be armed stay individually
+- If not configured, ARMAREA/STAYAREA commands will fail with ERR 2
+"""
 import asyncio
 import logging
 import re
@@ -113,11 +150,15 @@ class ArrowheadECiClient:
     def set_configured_areas(self, areas: List[int]) -> None:
         """
         Set configured areas from integration setup.
-        Single area mode = ONLY ONE area configured AND it's area 1
+        
+        Two-tier control system:
+        - Main panel commands (ARMAWAY/ARMSTAY): Control ALL areas at once
+        - Area-specific commands (ARMAREA x/STAYAREA x): Control individual areas (MODE 4 only)
         """
         self.configured_areas = sorted(areas) if areas else [1]
         
-        # Single area mode ONLY if exactly 1 area AND it's area 1
+        # Single area mode only affects main panel behavior
+        # Area-specific commands ALWAYS use MODE 4
         self.single_area_mode = (len(self.configured_areas) == 1 and self.configured_areas[0] == 1)
         
         self._status["configured_areas"] = self.configured_areas
@@ -127,12 +168,8 @@ class ArrowheadECiClient:
         _LOGGER.info("⚙️  AREA CONFIGURATION")
         _LOGGER.info("=" * 60)
         _LOGGER.info("Configured areas: %s", self.configured_areas)
-        _LOGGER.info("Single area mode: %s", self.single_area_mode)
-        
-        if self.single_area_mode:
-            _LOGGER.info("✅ Commands: ARMAWAY / ARMSTAY (simple, no area number)")
-        else:
-            _LOGGER.info("✅ Commands: ARMAREA x / STAYAREA x (MODE 4)")
+        _LOGGER.info("Main panel commands: ARMAWAY/ARMSTAY (all areas)")
+        _LOGGER.info("Area-specific commands: ARMAREA x/STAYAREA x (MODE 4)")
         _LOGGER.info("=" * 60)
 
     @property
@@ -443,8 +480,7 @@ class ArrowheadECiClient:
     async def send_armarea_command(self, area: int) -> bool:
         """
         Arm away for specified area.
-        Single area mode (area 1 only): ARMAWAY
-        Multi area mode: ARMAREA x
+        ALWAYS uses MODE 4 ARMAREA x command for individual area control.
         """
         try:
             if not (1 <= area <= 32):
@@ -455,30 +491,14 @@ class ArrowheadECiClient:
                 _LOGGER.error("Cannot arm: not connected")
                 return False
             
-            await self._clear_response_queue()
-            
-            # Single area mode
-            if self.single_area_mode:
-                command = "ARMAWAY"
-                _LOGGER.info("🏠 Single area: %s", command)
-                
-                response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
-                
-                if response and ("OK" in response and "Arm" in response):
-                    _LOGGER.info("✅ %s successful", command)
-                    await asyncio.sleep(1.5)
-                    return True
-                else:
-                    _LOGGER.error("❌ %s failed: %r", command, response)
-                    return False
-            
-            # Multi area mode
             if not self.mode_4_features_active:
                 _LOGGER.error("MODE 4 not active, cannot use ARMAREA")
                 return False
             
+            await self._clear_response_queue()
+            
             command = f"ARMAREA {area}"
-            _LOGGER.info("🏢 Multi area: %s", command)
+            _LOGGER.info("🏢 Area-specific arming: %s", command)
             
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
@@ -497,8 +517,7 @@ class ArrowheadECiClient:
     async def send_stayarea_command(self, area: int) -> bool:
         """
         Arm stay for specified area.
-        Single area mode (area 1 only): ARMSTAY
-        Multi area mode: STAYAREA x
+        ALWAYS uses MODE 4 STAYAREA x command for individual area control.
         """
         try:
             if not (1 <= area <= 32):
@@ -509,30 +528,14 @@ class ArrowheadECiClient:
                 _LOGGER.error("Cannot arm: not connected")
                 return False
             
-            await self._clear_response_queue()
-            
-            # Single area mode
-            if self.single_area_mode:
-                command = "ARMSTAY"
-                _LOGGER.info("🏠 Single area: %s", command)
-                
-                response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
-                
-                if response and ("OK" in response and ("Arm" in response or "Stay" in response)):
-                    _LOGGER.info("✅ %s successful", command)
-                    await asyncio.sleep(1.5)
-                    return True
-                else:
-                    _LOGGER.error("❌ %s failed: %r", command, response)
-                    return False
-            
-            # Multi area mode
             if not self.mode_4_features_active:
                 _LOGGER.error("MODE 4 not active, cannot use STAYAREA")
                 return False
             
+            await self._clear_response_queue()
+            
             command = f"STAYAREA {area}"
-            _LOGGER.info("🏢 Multi area: %s", command)
+            _LOGGER.info("🏢 Area-specific stay arming: %s", command)
             
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
@@ -548,8 +551,51 @@ class ArrowheadECiClient:
             _LOGGER.error("Exception arming stay area %d: %s", area, err)
             return False
 
-    async def disarm_with_pin(self, user_pin: str = None) -> bool:
-        """Disarm using DISARM x pin format."""
+    async def _switch_protocol_mode(self, mode: int) -> bool:
+        """
+        Temporarily switch protocol mode.
+        
+        Args:
+            mode: Protocol mode (2 or 4)
+            
+        Returns:
+            True if mode switch successful
+        """
+        try:
+            await self._clear_response_queue()
+            
+            command = f"MODE {mode}"
+            _LOGGER.info("🔄 Switching to MODE %d", mode)
+            
+            response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
+            
+            if response and ("OK" in response or f"MODE {mode}" in response):
+                _LOGGER.info("✅ MODE %d activated", mode)
+                
+                # Update internal state
+                if mode == 4:
+                    self.mode_4_features_active = True
+                    self.protocol_mode = "MODE_4"
+                elif mode == 2:
+                    self.mode_4_features_active = False
+                    self.protocol_mode = "MODE_2"
+                
+                # Small delay to let panel settle
+                await asyncio.sleep(0.5)
+                return True
+            else:
+                _LOGGER.error("❌ MODE %d switch failed: %r", mode, response)
+                return False
+                
+        except Exception as err:
+            _LOGGER.error("Exception switching to MODE %d: %s", mode, err)
+            return False
+
+    async def disarm_all_areas(self, user_pin: str = None) -> bool:
+        """
+        Disarm ALL areas using MODE 4 DISARM command.
+        Format: DISARM x pin where x = user number (1-2000)
+        """
         try:
             pin_to_use = user_pin if user_pin else self.user_pin
             
@@ -573,12 +619,12 @@ class ArrowheadECiClient:
             await self._clear_response_queue()
             
             command = f"DISARM {user_num} {pin}"
-            _LOGGER.info("🔓 Disarming as user %s", user_num)
+            _LOGGER.info("🔓 Disarming ALL areas as user %s (MODE 4)", user_num)
             
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Disarm" in response):
-                _LOGGER.info("✅ DISARM successful")
+                _LOGGER.info("✅ DISARM successful (all areas)")
                 await asyncio.sleep(1.5)
                 return True
             else:
@@ -589,57 +635,154 @@ class ArrowheadECiClient:
             _LOGGER.error("❌ Exception during disarm: %s", err)
             return False
 
+    async def disarm_area(self, area: int, pin: str) -> bool:
+        """
+        Disarm ONLY specified area using MODE 2 DISARM command.
+        
+        Strategy:
+        1. Switch to MODE 2 temporarily
+        2. Use DISARM x pin where x = area number (1-32)
+        3. Switch back to MODE 4
+        
+        Args:
+            area: Area number (1-32)
+            pin: User PIN code (just the PIN, not "user_number pin")
+            
+        Returns:
+            True if area disarmed successfully
+        """
+        try:
+            if not (1 <= area <= 32):
+                _LOGGER.error("Invalid area number: %d", area)
+                return False
+            
+            if not self.is_connected:
+                _LOGGER.error("Cannot disarm: not connected")
+                return False
+            
+            # Save current mode
+            original_mode = 4 if self.mode_4_features_active else 1
+            
+            _LOGGER.info("🔄 Individual disarm Area %d - switching to MODE 2", area)
+            
+            # Step 1: Switch to MODE 2
+            if not await self._switch_protocol_mode(2):
+                _LOGGER.error("Failed to switch to MODE 2")
+                return False
+            
+            try:
+                # Step 2: Disarm the area
+                await self._clear_response_queue()
+                
+                command = f"DISARM {area} {pin}"
+                _LOGGER.info("🔓 Disarming Area %d with MODE 2", area)
+                
+                response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
+                
+                if response and ("OK" in response and "Disarm" in response):
+                    _LOGGER.info("✅ Area %d disarmed successfully", area)
+                    success = True
+                else:
+                    _LOGGER.error("❌ Area %d disarm failed: %r", area, response)
+                    success = False
+                
+                # Wait for status update
+                await asyncio.sleep(1.5)
+                
+            finally:
+                # Step 3: Always switch back to original mode
+                if original_mode == 4:
+                    _LOGGER.info("🔄 Switching back to MODE 4")
+                    await self._switch_protocol_mode(4)
+            
+            return success
+                
+        except Exception as err:
+            _LOGGER.error("Exception during area %d disarm: %s", area, err)
+            # Try to restore MODE 4
+            try:
+                await self._switch_protocol_mode(4)
+            except Exception:
+                pass
+            return False
+
     async def send_main_panel_armaway(self) -> bool:
-        """Send ARMAWAY for main panel."""
+        """
+        Send ARMAWAY for main panel.
+        Arms ALL configured areas at once using simple ARMAWAY command.
+        """
         try:
             if not self.is_connected:
                 return False
             
             await self._clear_response_queue()
+            
+            _LOGGER.info("🏠 Main panel: ARMAWAY (all areas)")
             response = await self._send_command_safe("ARMAWAY", expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Arm" in response):
+                _LOGGER.info("✅ ARMAWAY successful (all areas)")
                 await asyncio.sleep(1.5)
                 return True
-            return False
-        except Exception:
+            else:
+                _LOGGER.error("❌ ARMAWAY failed: %r", response)
+                return False
+        except Exception as err:
+            _LOGGER.error("Exception arming main panel: %s", err)
             return False
 
     async def send_main_panel_armstay(self) -> bool:
-        """Send ARMSTAY for main panel."""
+        """
+        Send ARMSTAY for main panel.
+        Arms ALL configured areas at once using simple ARMSTAY command.
+        """
         try:
             if not self.is_connected:
                 return False
             
             await self._clear_response_queue()
+            
+            _LOGGER.info("🏠 Main panel: ARMSTAY (all areas)")
             response = await self._send_command_safe("ARMSTAY", expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and ("Arm" in response or "Stay" in response)):
+                _LOGGER.info("✅ ARMSTAY successful (all areas)")
                 await asyncio.sleep(1.5)
                 return True
-            return False
-        except Exception:
+            else:
+                _LOGGER.error("❌ ARMSTAY failed: %r", response)
+                return False
+        except Exception as err:
+            _LOGGER.error("Exception stay arming main panel: %s", err)
             return False
 
     async def arm_away(self) -> bool:
-        """Backward compatibility."""
+        """Backward compatibility - arms ALL areas."""
         return await self.send_main_panel_armaway()
 
     async def arm_stay(self) -> bool:
-        """Backward compatibility."""
+        """Backward compatibility - arms ALL areas."""
         return await self.send_main_panel_armstay()
 
     async def disarm(self) -> bool:
-        """Backward compatibility."""
-        return await self.disarm_with_pin()
+        """Backward compatibility - disarms ALL areas."""
+        return await self.disarm_all_areas()
+    
+    async def disarm_with_pin(self, user_pin: str = None) -> bool:
+        """Backward compatibility - disarms ALL areas."""
+        return await self.disarm_all_areas(user_pin)
 
     async def arm_away_area(self, area: int) -> bool:
-        """Backward compatibility."""
+        """Backward compatibility - arms specific area."""
         return await self.send_armarea_command(area)
 
     async def arm_stay_area(self, area: int) -> bool:
-        """Backward compatibility."""
+        """Backward compatibility - arms specific area."""
         return await self.send_stayarea_command(area)
+    
+    async def disarm_area_with_pin(self, area: int, pin: str) -> bool:
+        """Backward compatibility - disarms specific area."""
+        return await self.disarm_area(area, pin)
 
     # ===== ZONE AND OUTPUT METHODS =====
 

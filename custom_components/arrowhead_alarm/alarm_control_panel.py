@@ -538,15 +538,17 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
                 formatted_command = f"{user_number} {pin}"
                 _LOGGER.info("User %d specified: DISARM %s", user_number, formatted_command)
             
-            success = await self.coordinator.client.disarm_with_pin(formatted_command)
+            # Call the disarm_all_areas method (MODE 4)
+            # This disarms ALL areas
+            success = await self.coordinator.client.disarm_all_areas(formatted_command)
             
             if not success:
-                _LOGGER.error("Failed to disarm ECi panel")
-                raise ServiceValidationError("Disarm command failed - check user number and PIN")
+                _LOGGER.error("Failed to disarm ECi main panel (all areas)")
+                raise ServiceValidationError("Disarm all areas failed - check user number and PIN")
                 
         except Exception as err:
-            _LOGGER.error("Error during disarm: %s", err)
-            raise ServiceValidationError(f"Disarm failed: {str(err)}")
+            _LOGGER.error("Error during main panel disarm: %s", err)
+            raise ServiceValidationError(f"Disarm main panel failed: {str(err)}")
 
     async def async_alarm_arm_away(self, code: Optional[str] = None) -> None:
         """Send arm away command using ARMAWAY (main panel command)."""
@@ -863,8 +865,8 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
         return attributes
 
     async def async_alarm_disarm(self, code: Optional[str] = None) -> None:
-        """Send disarm command - user must specify user number if not user 1."""
-        _LOGGER.info("Disarming ECi area %d", self._area_number)
+        """Send disarm command for THIS AREA ONLY using MODE 2."""
+        _LOGGER.info("Disarming ECi area %d (individual)", self._area_number)
         
         # Validate PIN is provided
         if not code:
@@ -877,34 +879,26 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
         try:
             code_stripped = code.strip()
             
-            if ' ' not in code_stripped:
-                # Just PIN provided - assume user 1
-                formatted_command = f"1 {code_stripped}"
-                _LOGGER.info("PIN only provided, assuming user 1: DISARM %s", formatted_command)
-            else:
-                # User number and PIN provided - use as-is
+            # Extract just the PIN (remove user number if present)
+            if ' ' in code_stripped:
+                # Format was "user pin", extract just the PIN
                 parts = code_stripped.split(' ', 1)
-                if len(parts) != 2:
-                    raise ServiceValidationError("Invalid format. Use 'PIN' for user 1 or 'USER PIN' for other users")
-                
-                user_num, pin = parts
-                try:
-                    user_number = int(user_num)
-                    if not (1 <= user_number <= 2000):
-                        raise ServiceValidationError("User number must be between 1 and 2000")
-                except ValueError:
-                    raise ServiceValidationError("User number must be a valid integer")
-                
-                formatted_command = f"{user_number} {pin}"
-                _LOGGER.info("User %d specified: DISARM %s", user_number, formatted_command)
+                pin = parts[1].strip()
+                _LOGGER.info("Extracted PIN from 'user pin' format for area %d", self._area_number)
+            else:
+                # Just PIN provided
+                pin = code_stripped
+                _LOGGER.info("Using PIN for area %d disarm (MODE 2)", self._area_number)
             
-            success = await self.coordinator.client.disarm_with_pin(formatted_command)
+            # Call the new disarm_area method (MODE 2)
+            # This will switch to MODE 2, disarm this area, then switch back to MODE 4
+            success = await self.coordinator.client.disarm_area(self._area_number, pin)
             
             if not success:
-                raise ServiceValidationError("Disarm command failed - check user number and PIN")
+                raise ServiceValidationError(f"Disarm area {self._area_number} failed - check PIN")
                 
         except Exception as err:
-            raise ServiceValidationError(f"Disarm failed: {str(err)}")
+            raise ServiceValidationError(f"Disarm area {self._area_number} failed: {str(err)}")
 
     async def async_alarm_arm_away(self, code: Optional[str] = None) -> None:
         """Send arm away command for this area using ARMAREA."""
