@@ -33,6 +33,12 @@
 </div>
 
 ---
+## 🎉 What's New in Version 2.1.0
+
+FULL Individual Area Arm/Stay/Disarm support
+
+
+EntityARM AwayARM StayDISARMMain PanelARMAWAY(all areas)ARMSTAY(all areas)DISARM user# pin(MODE 4, all areas)Area 1ARMAREA 1(MODE 4, area 1 only)STAYAREA 1(MODE 4, area 1 only)DISARM 1 pin(MODE 2, area 1 only)Area 2ARMAREA 2(MODE 4, area 2 only)STAYAREA 2(MODE 4, area 2 only)DISARM 2 pin(MODE 2, area 2 only)Area 3ARMAREA 3(MODE 4, area 3 only)STAYAREA 3(MODE 4, area 3 only)DISARM 3 pin(MODE 2, area 3 only)
 
 ## 🎉 What's New in Version 2.0.1
 
