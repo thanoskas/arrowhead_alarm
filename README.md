@@ -296,13 +296,13 @@ Before installing the Home Assistant integration, you **must** configure your Ar
 
 1. **Download Files**:
    ```bash
-   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.0.1.zip
-   unzip v2.0.1.zip
+   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.1.0.zip
+   unzip v2.1.0.zip
    ```
 
 2. **Copy Integration**:
    ```bash
-   cp -r arrowhead_alarm-2.0.1/custom_components/arrowhead_alarm /config/custom_components/
+   cp -r arrowhead_alarm-2.1.0/custom_components/arrowhead_alarm /config/custom_components/
    ```
 
 3. **Restart Home Assistant** and add the integration through the UI.
