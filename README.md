@@ -131,14 +131,14 @@ PANEL CONFIGURATION REQUIRED:
 **For ECi Users:**
 1. ✅ Backup your current configuration
 2. ✅ Remove v1.x integration
-3. ✅ Install v2.0.1
+3. ✅ Install v2.1.0
 4. ✅ Reconfigure with manual area specification
 5. ✅ Update automations with new entity IDs
 
 **For ESX Users:**
 - ❌ Stay on [v1.x](https://github.com/thanoskas/arrowhead_alarm/tree/v1.0.0) - ESX support removed in v2.0.1
 
-> **Breaking Change**: Version 2.0.1 only supports ECi Series panels. ESX Elite-SX users should continue using version 1.x.
+> **Breaking Change**: Version 2.0.1+ only supports ECi Series panels. ESX Elite-SX users should continue using version 1.x.
 
 ---
 
@@ -748,7 +748,7 @@ pytest tests/
 
 Please include:
 - Home Assistant version
-- Integration version (2.0.1)
+- Integration version (2.1.0)
 - ECi firmware version
 - Debug logs (sanitized)
 - Steps to reproduce
