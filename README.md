@@ -38,7 +38,41 @@
 FULL Individual Area Arm/Stay/Disarm support
 
 
-EntityARM AwayARM StayDISARMMain PanelARMAWAY(all areas)ARMSTAY(all areas)DISARM user# pin(MODE 4, all areas)Area 1ARMAREA 1(MODE 4, area 1 only)STAYAREA 1(MODE 4, area 1 only)DISARM 1 pin(MODE 2, area 1 only)Area 2ARMAREA 2(MODE 4, area 2 only)STAYAREA 2(MODE 4, area 2 only)DISARM 2 pin(MODE 2, area 2 only)Area 3ARMAREA 3(MODE 4, area 3 only)STAYAREA 3(MODE 4, area 3 only)DISARM 3 pin(MODE 2, area 3 only)
+TWO-TIER AREA CONTROL SYSTEM:
+==============================
+
+MAIN PANEL ENTITY (alarm_control_panel.arrowhead_eci_series):
+- Uses simple ARMAWAY / ARMSTAY commands (MODE 4)
+- Controls ALL configured areas simultaneously
+- Example: ARMAWAY → Arms Area 1, Area 2, Area 3 all together
+- DISARM: Uses MODE 4 format (DISARM user# pin) → Disarms ALL areas
+
+AREA-SPECIFIC ENTITIES (alarm_control_panel.arrowhead_eci_series_area_1, etc):
+- ARM: Uses MODE 4 commands (ARMAREA x / STAYAREA x)
+  * Controls ONLY the specified area
+  * Example: ARMAREA 1 → Arms ONLY Area 1
+  * Requires P74E (away) and P76E (stay) to be configured in panel
+  
+- DISARM: Uses MODE 2 temporarily (DISARM area# pin)
+  * Switches to MODE 2, disarms specific area, switches back to MODE 4
+  * Example: DISARM 1 1234 (in MODE 2) → Disarms ONLY Area 1
+  * Automatic mode switching ensures correct operation
+
+DISARM BEHAVIOR:
+================
+MODE 4 (Main Panel):
+- DISARM x pin → x = user number (1-2000), disarms ALL areas
+- Example: DISARM 1 1234 → User 1 disarms all areas
+
+MODE 2 (Area-Specific):
+- DISARM x pin → x = area number (1-32), disarms ONLY that area
+- Example: DISARM 1 1234 → Disarms Area 1 only
+- Client handles MODE 2/4 switching automatically
+
+PANEL CONFIGURATION REQUIRED:
+- P74E = Areas that can be armed away individually
+- P76E = Areas that can be armed stay individually
+- If not configured, ARMAREA/STAYAREA commands will fail with ERR 2
 
 ## 🎉 What's New in Version 2.0.1
 
