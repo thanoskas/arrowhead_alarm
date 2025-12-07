@@ -33,7 +33,7 @@
 </div>
 
 ---
-## 🎉 What's New in Version 2.1.0
+## 🎉 What's New in Version 2.1.1
 
 <div align="left">
 <h1 style="font-size: 2em; margin: 0.5em 0;">FULL Individual Area Arm/Stay/Disarm support</h1>
@@ -133,7 +133,7 @@ PANEL CONFIGURATION REQUIRED:
 **For ECi Users:**
 1. ✅ Backup your current configuration
 2. ✅ Remove v1.x integration
-3. ✅ Install v2.1.0
+3. ✅ Install v2.1.1
 4. ✅ Reconfigure with manual area specification
 5. ✅ Update automations with new entity IDs
 
@@ -298,7 +298,7 @@ Before installing the Home Assistant integration, you **must** configure your Ar
 
 1. **Download Files**:
    ```bash
-   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.1.0.zip
+   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.1.1.zip
    unzip v2.1.0.zip
    ```
 
