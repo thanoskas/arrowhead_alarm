@@ -35,7 +35,9 @@
 ---
 ## 🎉 What's New in Version 2.1.0
 
-FULL Individual Area Arm/Stay/Disarm support
+<div align="center">
+<h1 style="font-size: 3em; margin: 0.5em 0;">FULL Individual Area Arm/Stay/Disarm support</h1>
+</div>
 
 
 TWO-TIER AREA CONTROL SYSTEM:
