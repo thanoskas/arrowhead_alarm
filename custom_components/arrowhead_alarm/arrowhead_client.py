@@ -1,4 +1,4 @@
-"""Enhanced ECi client - CORRECT version based on real panel responses."""
+"""Enhanced ECi client - FINAL CORRECTED VERSION."""
 import asyncio
 import logging
 import re
@@ -19,7 +19,7 @@ class ConnectionState(Enum):
     ERROR = "error"
 
 class ArrowheadECiClient:
-    """ECi client with correct panel response handling."""
+    """ECi client with correct single area detection."""
 
     def __init__(self, host: str, port: int, user_pin: str, username: str = "admin", 
                  password: str = "admin", debug_raw_comms: bool = True):
@@ -38,9 +38,9 @@ class ArrowheadECiClient:
         self.supports_mode_4 = False
         self.mode_4_features_active = False
         
-        # Area configuration
-        self.configured_areas = []
-        self.single_area_mode = False
+        # Area configuration - Default to single area
+        self.configured_areas = [1]
+        self.single_area_mode = True
         
         # Connection management
         self.reader: Optional[asyncio.StreamReader] = None
@@ -66,8 +66,8 @@ class ArrowheadECiClient:
             "protocol_mode": self.protocol_mode,
             "supports_mode_4": self.supports_mode_4,
             "mode_4_features_active": False,
-            "single_area_mode": False,
-            "configured_areas": [],
+            "single_area_mode": True,
+            "configured_areas": [1],
             "zones": {},
             "zone_alarms": {},
             "zone_troubles": {},
@@ -111,13 +111,29 @@ class ArrowheadECiClient:
         self._output_pattern = re.compile(r'^O([OR])(\d{1,2})$')
 
     def set_configured_areas(self, areas: List[int]) -> None:
-        """Set configured areas from integration setup."""
-        self.configured_areas = sorted(areas) if areas else []
-        self.single_area_mode = (len(self.configured_areas) == 1)
+        """
+        Set configured areas from integration setup.
+        Single area mode = ONLY ONE area configured AND it's area 1
+        """
+        self.configured_areas = sorted(areas) if areas else [1]
+        
+        # Single area mode ONLY if exactly 1 area AND it's area 1
+        self.single_area_mode = (len(self.configured_areas) == 1 and self.configured_areas[0] == 1)
+        
         self._status["configured_areas"] = self.configured_areas
         self._status["single_area_mode"] = self.single_area_mode
-        _LOGGER.info("Configured areas: %s, Single area mode: %s", 
-                    self.configured_areas, self.single_area_mode)
+        
+        _LOGGER.info("=" * 60)
+        _LOGGER.info("⚙️  AREA CONFIGURATION")
+        _LOGGER.info("=" * 60)
+        _LOGGER.info("Configured areas: %s", self.configured_areas)
+        _LOGGER.info("Single area mode: %s", self.single_area_mode)
+        
+        if self.single_area_mode:
+            _LOGGER.info("✅ Commands: ARMAWAY / ARMSTAY (simple, no area number)")
+        else:
+            _LOGGER.info("✅ Commands: ARMAREA x / STAYAREA x (MODE 4)")
+        _LOGGER.info("=" * 60)
 
     @property
     def is_connected(self) -> bool:
@@ -393,25 +409,42 @@ class ArrowheadECiClient:
         """Clear response queue to avoid stale responses."""
         try:
             cleared = 0
-            while not self._response_queue.empty() and cleared < 20:
+            # Clear ALL queued messages (up to 50)
+            while not self._response_queue.empty() and cleared < 50:
                 try:
                     self._response_queue.get_nowait()
                     cleared += 1
                 except asyncio.QueueEmpty:
                     break
+            
             if cleared > 0 and self.debug_raw_comms:
                 _LOGGER.debug("🗑️ Cleared %d queued responses", cleared)
-            await asyncio.sleep(0.3)
+            
+            # Wait longer for any in-flight messages to arrive
+            await asyncio.sleep(0.8)
+            
+            # Clear again any that arrived during the wait
+            cleared2 = 0
+            while not self._response_queue.empty() and cleared2 < 10:
+                try:
+                    self._response_queue.get_nowait()
+                    cleared2 += 1
+                except asyncio.QueueEmpty:
+                    break
+            
+            if cleared2 > 0 and self.debug_raw_comms:
+                _LOGGER.debug("🗑️ Cleared %d more responses after wait", cleared2)
+                
         except Exception:
             pass
 
-    # ===== ARM/DISARM METHODS - CORRECT PANEL RESPONSE HANDLING =====
+    # ===== ARM/DISARM METHODS =====
 
     async def send_armarea_command(self, area: int) -> bool:
         """
         Arm away for specified area.
-        Panel responds with: "OK ArmAway" (single) or "OK ArmArea" (multi)
-        Then sends: EA1, EDA1-30, ZBYx, A1, RO1
+        Single area mode (area 1 only): ARMAWAY
+        Multi area mode: ARMAREA x
         """
         try:
             if not (1 <= area <= 32):
@@ -422,44 +455,39 @@ class ArrowheadECiClient:
                 _LOGGER.error("Cannot arm: not connected")
                 return False
             
-            # Clear queue to avoid stale responses
             await self._clear_response_queue()
             
             # Single area mode
             if self.single_area_mode:
                 command = "ARMAWAY"
-                _LOGGER.info("🏠 Single area mode: sending %s", command)
+                _LOGGER.info("🏠 Single area: %s", command)
                 
-                # Send and wait for "OK ArmAway"
-                response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
+                response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
                 
                 if response and ("OK" in response and "Arm" in response):
-                    _LOGGER.info("✅ %s: got OK response", command)
-                    # Wait for status messages (A1, RO1)
+                    _LOGGER.info("✅ %s successful", command)
                     await asyncio.sleep(1.5)
                     return True
                 else:
-                    _LOGGER.error("❌ %s failed: unexpected response %r", command, response)
+                    _LOGGER.error("❌ %s failed: %r", command, response)
                     return False
             
-            # Multi area mode - MODE 4 only
+            # Multi area mode
             if not self.mode_4_features_active:
                 _LOGGER.error("MODE 4 not active, cannot use ARMAREA")
                 return False
             
             command = f"ARMAREA {area}"
-            _LOGGER.info("🏢 Multi area mode: sending %s", command)
+            _LOGGER.info("🏢 Multi area: %s", command)
             
-            # Send and wait for "OK ArmArea"
-            response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
+            response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Arm" in response):
-                _LOGGER.info("✅ %s: got OK response", command)
-                # Wait for status messages (EA1, A1, RO1)
+                _LOGGER.info("✅ %s successful", command)
                 await asyncio.sleep(1.5)
                 return True
             else:
-                _LOGGER.error("❌ %s failed: unexpected response %r", command, response)
+                _LOGGER.error("❌ %s failed: %r", command, response)
                 return False
                 
         except Exception as err:
@@ -469,8 +497,8 @@ class ArrowheadECiClient:
     async def send_stayarea_command(self, area: int) -> bool:
         """
         Arm stay for specified area.
-        Panel responds with: "OK ArmStay" (single) or "OK StayArea" (multi)
-        Then sends: ES1, EDS1-30, ZBYx, S1, RO1
+        Single area mode (area 1 only): ARMSTAY
+        Multi area mode: STAYAREA x
         """
         try:
             if not (1 <= area <= 32):
@@ -481,44 +509,39 @@ class ArrowheadECiClient:
                 _LOGGER.error("Cannot arm: not connected")
                 return False
             
-            # Clear queue to avoid stale responses
             await self._clear_response_queue()
             
             # Single area mode
             if self.single_area_mode:
                 command = "ARMSTAY"
-                _LOGGER.info("🏠 Single area mode: sending %s", command)
+                _LOGGER.info("🏠 Single area: %s", command)
                 
-                # Send and wait for "OK ArmStay"
-                response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
+                response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
                 
                 if response and ("OK" in response and ("Arm" in response or "Stay" in response)):
-                    _LOGGER.info("✅ %s: got OK response", command)
-                    # Wait for status messages (S1, RO1)
+                    _LOGGER.info("✅ %s successful", command)
                     await asyncio.sleep(1.5)
                     return True
                 else:
-                    _LOGGER.error("❌ %s failed: unexpected response %r", command, response)
+                    _LOGGER.error("❌ %s failed: %r", command, response)
                     return False
             
-            # Multi area mode - MODE 4 only
+            # Multi area mode
             if not self.mode_4_features_active:
                 _LOGGER.error("MODE 4 not active, cannot use STAYAREA")
                 return False
             
             command = f"STAYAREA {area}"
-            _LOGGER.info("🏢 Multi area mode: sending %s", command)
+            _LOGGER.info("🏢 Multi area: %s", command)
             
-            # Send and wait for "OK StayArea"
-            response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
+            response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Stay" in response):
-                _LOGGER.info("✅ %s: got OK response", command)
-                # Wait for status messages (ES1, S1, RO1)
+                _LOGGER.info("✅ %s successful", command)
                 await asyncio.sleep(1.5)
                 return True
             else:
-                _LOGGER.error("❌ %s failed: unexpected response %r", command, response)
+                _LOGGER.error("❌ %s failed: %r", command, response)
                 return False
                 
         except Exception as err:
@@ -526,11 +549,7 @@ class ArrowheadECiClient:
             return False
 
     async def disarm_with_pin(self, user_pin: str = None) -> bool:
-        """
-        Disarm using DISARM x pin format.
-        Panel responds with: "OK Disarm"
-        Then sends: ZBYRx, ZOx, D1-U1, NR1
-        """
+        """Disarm using DISARM x pin format."""
         try:
             pin_to_use = user_pin if user_pin else self.user_pin
             
@@ -538,12 +557,10 @@ class ArrowheadECiClient:
                 _LOGGER.error("❌ Invalid user code format. Expected 'user_number pin' (e.g. '1 1234')")
                 return False
             
-            # Parse user number and PIN
             parts = pin_to_use.split(' ', 1)
             user_num = parts[0].strip()
             pin = parts[1].strip()
             
-            # Validate user number (1-2000)
             try:
                 user_int = int(user_num)
                 if not (1 <= user_int <= 2000):
@@ -553,22 +570,19 @@ class ArrowheadECiClient:
                 _LOGGER.error("❌ Invalid user number format: %s", user_num)
                 return False
             
-            # Clear queue to avoid stale responses
             await self._clear_response_queue()
             
-            # Send DISARM command and wait for "OK Disarm"
             command = f"DISARM {user_num} {pin}"
             _LOGGER.info("🔓 Disarming as user %s", user_num)
             
-            response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
+            response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Disarm" in response):
-                _LOGGER.info("✅ DISARM: got OK response")
-                # Wait for status messages (D1-U1, NR1)
+                _LOGGER.info("✅ DISARM successful")
                 await asyncio.sleep(1.5)
                 return True
             else:
-                _LOGGER.error("❌ DISARM failed: unexpected response %r", response)
+                _LOGGER.error("❌ DISARM failed: %r", response)
                 return False
                 
         except Exception as err:
@@ -582,7 +596,7 @@ class ArrowheadECiClient:
                 return False
             
             await self._clear_response_queue()
-            response = await self._send_command_safe("ARMAWAY", expect_response=True, timeout=5.0)
+            response = await self._send_command_safe("ARMAWAY", expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Arm" in response):
                 await asyncio.sleep(1.5)
@@ -598,7 +612,7 @@ class ArrowheadECiClient:
                 return False
             
             await self._clear_response_queue()
-            response = await self._send_command_safe("ARMSTAY", expect_response=True, timeout=5.0)
+            response = await self._send_command_safe("ARMSTAY", expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and ("Arm" in response or "Stay" in response)):
                 await asyncio.sleep(1.5)
@@ -828,10 +842,9 @@ class ArrowheadECiClient:
 
     def _process_area_message(self, message: str) -> bool:
         """Process area messages."""
-        # A1, A2, A3 = Area armed away
+        # A1, A2, A3 or A1-U1 = Area armed away
         if message.startswith("A") and len(message) >= 2:
             try:
-                # Check if it's A1-U1 format (MODE 4) or just A1
                 parts = message[1:].split('-')
                 area_num = int(parts[0])
                 
@@ -976,16 +989,10 @@ class ArrowheadECiClient:
     def _process_mode4_message(self, message: str) -> bool:
         """Process MODE 4 specific messages."""
         try:
-            # EA1, EA2, EA3 = Exit delay armed away
-            # ES1, ES2, ES3 = Exit delay armed stay
-            # EDA1-30, EDS1-30 = Exit delay with time
-            if message.startswith("EA") or message.startswith("ES") or message.startswith("EDA") or message.startswith("EDS"):
-                return True
-            # ZEDS = Zone entry delay start
-            elif message.startswith("ZEDS"):
-                return True
-            # AR1, AR2, AR3 = Alarm restored
-            elif message.startswith("AR"):
+            # EA1, ES1, EDA1-30, EDS1-30, AR1, etc.
+            if (message.startswith("EA") or message.startswith("ES") or 
+                message.startswith("EDA") or message.startswith("EDS") or
+                message.startswith("ZEDS") or message.startswith("AR")):
                 return True
         except Exception:
             pass
