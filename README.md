@@ -116,12 +116,12 @@ Before installing the Home Assistant integration, you **must** configure your Ar
    - Go to P201E4E (Network Settings)
    - Enable Serial Over IP functionality
    - Note the IP address and port (default: 9000)
-
-3. **Configure Serial Authorization**
+   - 
+3. **~~Configure Serial Authorization~~** ⚠️ **DO NOT ENABLE**
    - Navigate to P25E19-21E (Serial Port Options)
    - Select Option C under the options tab
-   - Enable Serial Authorization
-
+   - ~~Enable Serial Authorization~~ **LEAVE DISABLED**
+    
 4. **Save Configuration**
    - Save all changes and exit programming mode
    - The panel may require a restart to apply network settings
