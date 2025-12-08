@@ -22,7 +22,7 @@
 
 <div align="center">
 <h3>📢 Important Version Notice</h3>
-<p><strong>Version 2.0.1+</strong>: ECi Series only (MODE 4 support, enhanced features)</p>
+<p><strong>Version 2.1.1+</strong>: ECi Series only (MODE 4 support, enhanced features)</p>
 <p><strong>Version 1.x</strong>: <a href="https://github.com/thanoskas/arrowhead_alarm/tree/v1.0.0">ESX Elite-SX support available here</a></p>
 </div>
 
@@ -33,90 +33,39 @@
 </div>
 
 ---
+
 ## 🎉 What's New in Version 2.1.1
 
-<div align="left">
-<h1 style="font-size: 2em; margin: 0.5em 0;">FULL Individual Area Arm/Stay/Disarm support</h1>
-</div>
+### 🚀 Full Individual Area Control
 
+**Two-Tier System:**
+- **Main Panel Entity**: Arms/disarms ALL areas simultaneously (MODE 4)
+- **Area Entities**: Individual control per area (MODE 4 ARM, MODE 2 DISARM)
 
-TWO-TIER AREA CONTROL SYSTEM:
-==============================
+**Key Features:**
+- ✅ **Individual Area Arming**: ARMAREA/STAYAREA commands (requires P74E/P76E configuration)
+- ✅ **Individual Area Disarm**: Automatic MODE 2/4 switching for area-specific disarm
+- ✅ **Smart Protocol**: Client handles mode switching automatically
 
-MAIN PANEL ENTITY (alarm_control_panel.arrowhead_eci_series):
-- Uses simple ARMAWAY / ARMSTAY commands (MODE 4)
-- Controls ALL configured areas simultaneously
-- Example: ARMAWAY → Arms Area 1, Area 2, Area 3 all together
-- DISARM: Uses MODE 4 format (DISARM user# pin) → Disarms ALL areas
+**Panel Requirements:**
+- `P74E` - Configure areas for individual away arming
+- `P76E` - Configure areas for individual stay arming
 
-AREA-SPECIFIC ENTITIES (alarm_control_panel.arrowhead_eci_series_area_1, etc):
-- ARM: Uses MODE 4 commands (ARMAREA x / STAYAREA x)
-  * Controls ONLY the specified area
-  * Example: ARMAREA 1 → Arms ONLY Area 1
-  * Requires P74E (away) and P76E (stay) to be configured in panel
-  
-- DISARM: Uses MODE 2 temporarily (DISARM area# pin)
-  * Switches to MODE 2, disarms specific area, switches back to MODE 4
-  * Example: DISARM 1 1234 (in MODE 2) → Disarms ONLY Area 1
-  * Automatic mode switching ensures correct operation
+> **Note**: Without P74E/P76E configuration, ARMAREA/STAYAREA will fail with ERR 2
 
-DISARM BEHAVIOR:
-================
-MODE 4 (Main Panel):
-- DISARM x pin → x = user number (1-2000), disarms ALL areas
-- Example: DISARM 1 1234 → User 1 disarms all areas
+---
 
-MODE 2 (Area-Specific):
-- DISARM x pin → x = area number (1-32), disarms ONLY that area
-- Example: DISARM 1 1234 → Disarms Area 1 only
-- Client handles MODE 2/4 switching automatically
+## 📊 Version Comparison
 
-PANEL CONFIGURATION REQUIRED:
-- P74E = Areas that can be armed away individually
-- P76E = Areas that can be armed stay individually
-- If not configured, ARMAREA/STAYAREA commands will fail with ERR 2
-
-## 🎉 What's New in Version 2.0.1
-
-<div align="center">
-<table>
-<tr>
-<th>Feature</th>
-<th>Version 1.x</th>
-<th>Version 2.0.1</th>
-</tr>
-<tr>
-<td><strong>Panel Support</strong></td>
-<td>ESX + ECi</td>
-<td>ECi Only</td>
-</tr>
-<tr>
-<td><strong>MODE 4 Protocol</strong></td>
-<td>❌ Not Available</td>
-<td>✅ Full Support</td>
-</tr>
-<tr>
-<td><strong>Individual Area Panels</strong></td>
-<td>❌ Single Panel Only</td>
-<td>✅ Per-Area Control</td>
-</tr>
-<tr>
-<td><strong>Keypad Alarms</strong></td>
-<td>❌ Not Available</td>
-<td>✅ Panic/Fire/Medical</td>
-</tr>
-<tr>
-<td><strong>Bulk Operations</strong></td>
-<td>❌ Limited</td>
-<td>✅ Full Support</td>
-</tr>
-<tr>
-<td><strong>Sealed Zone Support</strong></td>
-<td>⚠️ Basic</td>
-<td>✅ Enhanced</td>
-</tr>
-</table>
-</div>
+| Feature | v1.x | v2.1.1 |
+|---------|------|--------|
+| **Panel Support** | ESX + ECi | ECi Only |
+| **MODE 4 Protocol** | ❌ | ✅ Full Support |
+| **Individual Areas** | ❌ | ✅ Per-Area Control |
+| **Individual Disarm** | ❌ | ✅ MODE 2 Support |
+| **Keypad Alarms** | ❌ | ✅ Panic/Fire/Medical |
+| **Bulk Operations** | ⚠️ Limited | ✅ Full Support |
+| **Sealed Zones** | ⚠️ Basic | ✅ Enhanced |
 
 ### 🚀 Major Changes
 
@@ -299,12 +248,12 @@ Before installing the Home Assistant integration, you **must** configure your Ar
 1. **Download Files**:
    ```bash
    wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.1.1.zip
-   unzip v2.1.0.zip
+   unzip v2.1.1.zip
    ```
 
 2. **Copy Integration**:
    ```bash
-   cp -r arrowhead_alarm-2.1.0/custom_components/arrowhead_alarm /config/custom_components/
+   cp -r arrowhead_alarm-2.1.1/custom_components/arrowhead_alarm /config/custom_components/
    ```
 
 3. **Restart Home Assistant** and add the integration through the UI.
@@ -330,10 +279,15 @@ The integration uses a **guided configuration wizard** with the following steps:
 | **Host** | IP address of ECi panel | - | Yes |
 | **Port** | TCP port for communication | 9000 | No |
 | **User PIN** | User number and PIN code | "1 123" | Yes |
-| **Username** | Admin username | "admin" | No |
-| **Password** | Admin password | "admin" | No |
+| **Username** | ~~Admin username~~ | "admin" | No |
+| **Password** | ~~Admin password~~ | "admin" | No |
 | **Areas** | Active areas (comma-separated) | "1" | Yes |
 | **Max Outputs** | Number of outputs to control | 4 | No |
+
+
+
+> **⚠️ Authentication Note**: Username/password authentication is **NOT currently supported**. The ECi panel uses **no encryption** for TCP/IP communication. Only User PIN is required for arm/disarm operations.
+
 
 #### User PIN Format
 
