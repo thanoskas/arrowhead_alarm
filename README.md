@@ -34,6 +34,17 @@
 
 ---
 
+## 🎉 What's New in Version 2.2.0
+
+### Inproved event hadnling
+
+✅ Better commands handilg (handle message sequences)
+✅ Real-time updates (<200ms instead of 0-30 sec)
+✅ No more "Failed to bypass" errors
+✅ Instant zone state changes
+✅ Responsive UI
+
+
 ## 🎉 What's New in Version 2.1.1
 
 ### 🚀 Full Individual Area Control
@@ -247,13 +258,13 @@ Before installing the Home Assistant integration, you **must** configure your Ar
 
 1. **Download Files**:
    ```bash
-   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.1.1.zip
-   unzip v2.1.1.zip
+   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.2.0.zip
+   unzip v2.2.0.zip
    ```
 
 2. **Copy Integration**:
    ```bash
-   cp -r arrowhead_alarm-2.1.1/custom_components/arrowhead_alarm /config/custom_components/
+   cp -r arrowhead_alarm-2.2.0/custom_components/arrowhead_alarm /config/custom_components/
    ```
 
 3. **Restart Home Assistant** and add the integration through the UI.
