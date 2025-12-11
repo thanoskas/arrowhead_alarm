@@ -5,6 +5,65 @@ All notable changes to the Arrowhead Alarm Panel integration will be documented 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+
+## 🎉 What's New in Version 2.2.0
+
+### Inproved event hadnling
+
+✅ Better commands handilg (handle message sequences)
+✅ Real-time updates (<200ms instead of 0-30 sec)
+✅ No more "Failed to bypass" errors
+✅ Instant zone state changes
+✅ Responsive UI
+
+
+## 🎉 What's New in Version 2.1.1
+
+### 🚀 Full Individual Area Control
+
+**Two-Tier System:**
+- **Main Panel Entity**: Arms/disarms ALL areas simultaneously (MODE 4)
+- **Area Entities**: Individual control per area (MODE 4 ARM, MODE 2 DISARM)
+
+**Key Features:**
+- ✅ **Individual Area Arming**: ARMAREA/STAYAREA commands (requires P74E/P76E configuration)
+- ✅ **Individual Area Disarm**: Automatic MODE 2/4 switching for area-specific disarm
+- ✅ **Smart Protocol**: Client handles mode switching automatically
+
+**Panel Requirements:**
+- `P74E` - Configure areas for individual away arming
+- `P76E` - Configure areas for individual stay arming
+
+> **Note**: Without P74E/P76E configuration, ARMAREA/STAYAREA will fail with ERR 2
+
+---
+
+## 📊 Version Comparison
+
+| Feature | v1.x | v2.1.1 |
+|---------|------|--------|
+| **Panel Support** | ESX + ECi | ECi Only |
+| **MODE 4 Protocol** | ❌ | ✅ Full Support |
+| **Individual Areas** | ❌ | ✅ Per-Area Control |
+| **Individual Disarm** | ❌ | ✅ MODE 2 Support |
+| **Keypad Alarms** | ❌ | ✅ Panic/Fire/Medical |
+| **Bulk Operations** | ⚠️ Limited | ✅ Full Support |
+| **Sealed Zones** | ⚠️ Basic | ✅ Enhanced |
+
+### 🚀 Major Changes
+
+- **🎯 ECi-Only Focus**: Streamlined exclusively for ECi Series panels
+- **🚀 MODE 4 Support**: Full support for firmware 10.3.50+ enhanced features
+- **🏠 Individual Area Panels**: Separate alarm panel entity for each configured area
+- **⚡ Enhanced Services**: 36+ services including bulk operations and keypad alarms
+- **🔍 Improved Detection**: Better zone detection with sealed zone support
+- **🐛 Bug Fixes**: Numerous fixes for stability and reliability
+- **📊 Better Monitoring**: Health tracking and improved diagnostics
+
+
+
+> **Breaking Change**: Version 2.0.1+ only supports ECi Series panels. ESX Elite-SX users should continue using version 1.x.
 ## [2.0.0] - 2024-12-03
 
 ### 🎯 Major Changes
