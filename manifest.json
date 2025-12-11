@@ -1,7 +1,7 @@
 {
   "domain": "arrowhead_alarm",
   "name": "Arrowhead Alarm Panel",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "documentation": "https://github.com/thanoskas/arrowhead_alarm/blob/main/README.md",
   "issue_tracker": "https://github.com/thanoskas/arrowhead_alarm/issues",
   "codeowners": ["@thanoskas"],
