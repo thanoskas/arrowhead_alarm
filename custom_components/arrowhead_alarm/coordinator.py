@@ -38,6 +38,12 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
         self._connection_state_callbacks = []
         self._last_successful_update = None
         self._consecutive_failures = 0
+        
+        # ADDED: Register callback for real-time updates
+        if hasattr(client, 'register_state_change_callback'):
+            client.register_state_change_callback(self._handle_client_state_change)
+            _LOGGER.info("✅ Registered real-time state change callback")
+        
         self._health_metrics = {
             "total_updates": 0,
             "successful_updates": 0,
@@ -151,6 +157,9 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
                 if not success:
                     raise UpdateFailed("Failed to connect to ECi panel during first refresh")
             
+            # NEW: Initialize zone states by querying panel before first update
+            await self._initialize_zone_states()
+            
             # Get initial status with retry logic
             data = await self._async_update_data_with_retry()
             
@@ -188,6 +197,68 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error during first refresh: %s", err)
             self._record_error(err)
             raise UpdateFailed(f"First refresh failed: {err}")
+
+    async def _initialize_zone_states(self) -> None:
+        """
+        Initialize zone states by querying panel for currently unsealed zones.
+        
+        This ensures zones have correct initial state instead of defaulting to False.
+        Particularly important for zones that are open during HA startup.
+        """
+        try:
+            if not hasattr(self._client, 'query_unsealed_zones'):
+                _LOGGER.debug("Client doesn't support query_unsealed_zones, skipping initialization")
+                return
+            
+            _LOGGER.info("Querying panel for current zone states...")
+            
+            # Query which zones are currently open/unsealed
+            unsealed_zones = await self._client.query_unsealed_zones()
+            
+            # Get list of zones we should be monitoring
+            zones_to_monitor = []
+            if self._config_entry:
+                # Try to get from detected zones first
+                detected_zones = self._config_entry.data.get("detected_zones", [])
+                if detected_zones:
+                    zones_to_monitor = detected_zones
+                else:
+                    # Fallback to max_zones range
+                    max_zones = self._config_entry.data.get("max_zones", 16)
+                    zones_to_monitor = list(range(1, max_zones + 1))
+            
+            if not zones_to_monitor:
+                _LOGGER.warning("No zones to monitor, skipping state initialization")
+                return
+            
+            # Initialize zones in client status
+            if "zones" not in self._client._status:
+                self._client._status["zones"] = {}
+            
+            # Set all monitored zones to their correct initial state
+            initialized_open = 0
+            initialized_closed = 0
+            
+            for zone_id in zones_to_monitor:
+                if zone_id in unsealed_zones:
+                    self._client._status["zones"][zone_id] = True  # Open/Unsealed
+                    initialized_open += 1
+                else:
+                    self._client._status["zones"][zone_id] = False  # Closed/Sealed
+                    initialized_closed += 1
+            
+            _LOGGER.info(
+                "Initialized %d zone states: %d open, %d closed",
+                len(zones_to_monitor),
+                initialized_open, 
+                initialized_closed
+            )
+            
+            if unsealed_zones:
+                _LOGGER.info("Unsealed zones at startup: %s", unsealed_zones)
+            
+        except Exception as err:
+            _LOGGER.warning("Error initializing zone states: %s - zones will initialize as closed", err)
 
     def _validate_initial_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate initial data structure."""
@@ -403,6 +474,27 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Error during reconnection: %s", err)
             self._record_error(f"Reconnection error: {err}")
+
+    async def _handle_client_state_change(self, change_type: str, details: dict):
+        """
+        Handle real-time state changes from client.
+        
+        Called by client when unsolicited messages update state (zones, areas, bypasses).
+        Triggers immediate coordinator refresh to update HA entities.
+        
+        Args:
+            change_type: Type of change (zone, area, bypass, output, system)
+            details: Dictionary with change details
+        """
+        try:
+            _LOGGER.debug(f"⚡ Real-time state change: {change_type} - {details.get('message', 'N/A')}")
+            
+            # Trigger immediate refresh to update entities
+            # This bypasses the polling interval and updates NOW
+            await self.async_request_refresh()
+            
+        except Exception as err:
+            _LOGGER.debug(f"Error handling state change: {err}")
 
     async def async_shutdown(self) -> None:
         """Shutdown the coordinator with cleanup."""
@@ -664,6 +756,9 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
             
             if success:
                 _LOGGER.info("Successfully %sed zone %s", action, zone_id)
+                
+                # Request refresh to update UI
+                # No delay needed - client already waited for status update
                 await self.async_request_refresh()
             else:
                 _LOGGER.error("Failed to %s zone %s", action, zone_id)

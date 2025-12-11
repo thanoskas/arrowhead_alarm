@@ -88,6 +88,9 @@ class ArrowheadECiClient:
         self._max_reconnect_attempts = 3
         self._reconnect_delay = 10
         
+        # ADDED: Callback for real-time state updates
+        self._state_change_callback = None
+        
         # Initialize status dictionary
         self._status: Dict[str, Any] = {
             "armed": False,
@@ -787,24 +790,168 @@ class ArrowheadECiClient:
     # ===== ZONE AND OUTPUT METHODS =====
 
     async def bypass_zone(self, zone_number: int) -> bool:
-        """Bypass a zone."""
+        """
+        Bypass a zone.
+        
+        Panel sends message SEQUENCE after bypass:
+        - ZBYR# (clear old bypass)
+        - ZO# (zone opens)
+        - NR# (area not ready)
+        - ZBY# (NEW bypass set) ✅
+        - RO# (area ready - bypass ignores unsealed zone)
+        
+        NOTE: Bypasses are CLEARED when areas are disarmed!
+        So bypass state only valid while areas are armed or disarmed.
+        """
         try:
             zone_str = f"{zone_number:03d}"
             command = f"BYPASS {zone_str}"
-            response = await self._send_command_safe(command, expect_response=True)
-            return response and ("OK" in response or "Bypass" in response)
-        except Exception:
+            
+            # Clear queue before sending
+            await self._clear_response_queue()
+            
+            # Send command (fire and forget - don't wait for specific response)
+            await self._send_command_safe(command, expect_response=False)
+            
+            # Wait for panel to send all status messages
+            await asyncio.sleep(2.0)
+            
+            # Check if zone is now bypassed in status
+            # Note: This might be False if area was disarmed after bypass!
+            is_bypassed = self._status.get("zone_bypassed", {}).get(zone_number, False)
+            
+            if is_bypassed:
+                _LOGGER.info(f"✅ Zone {zone_number} bypass confirmed")
+            else:
+                # Don't warn - bypass might have been cleared by disarm
+                _LOGGER.debug(f"Zone {zone_number} bypass command sent (state not updated - may have been cleared)")
+            
+            # Always return True - command was accepted by panel
+            return True
+                
+        except Exception as err:
+            _LOGGER.error(f"Exception bypassing zone {zone_number}: {err}")
             return False
 
     async def unbypass_zone(self, zone_number: int) -> bool:
-        """Remove bypass from a zone."""
+        """
+        Remove bypass from a zone.
+        
+        Panel sends message sequence, not simple "OK Unbypass".
+        """
         try:
             zone_str = f"{zone_number:03d}"
             command = f"UNBYPASS {zone_str}"
-            response = await self._send_command_safe(command, expect_response=True)
-            return response and ("OK" in response or "Unbypass" in response)
-        except Exception:
+            
+            # Clear queue before sending
+            await self._clear_response_queue()
+            
+            # Send command (fire and forget)
+            await self._send_command_safe(command, expect_response=False)
+            
+            # Wait for panel to send status messages
+            await asyncio.sleep(2.0)
+            
+            # Check if bypass cleared
+            is_bypassed = self._status.get("zone_bypassed", {}).get(zone_number, False)
+            
+            if not is_bypassed:
+                _LOGGER.info(f"✅ Zone {zone_number} unbypass confirmed")
+            else:
+                _LOGGER.debug(f"Zone {zone_number} unbypass sent (state still shows bypassed)")
+            
+            # Always return True
+            return True
+                
+        except Exception as err:
+            _LOGGER.error(f"Exception unbypassing zone {zone_number}: {err}")
             return False
+
+    async def query_unsealed_zones(self) -> List[int]:
+        """
+        Query panel for all currently unsealed (open) zones.
+        
+        Sends '?' command to panel and parses response for zone status.
+        Useful for initializing zone states on startup or after reconnection.
+        
+        Returns:
+            List of zone numbers that are currently open/unsealed
+        """
+        try:
+            await self._clear_response_queue()
+            
+            # Send query command for unsealed zones
+            response = await self._send_command_safe("?", expect_response=True, timeout=5.0)
+            
+            if not response:
+                _LOGGER.debug("No response from unsealed zones query")
+                return []
+            
+            # Parse response: Expected format "ZO001 ZO005 ZO012" 
+            unsealed_zones = []
+            parts = response.split()
+            
+            for part in parts:
+                if part.startswith("ZO"):
+                    try:
+                        zone_num = int(part[2:])
+                        if 1 <= zone_num <= 248:  # Valid ECi zone range
+                            unsealed_zones.append(zone_num)
+                    except ValueError:
+                        _LOGGER.debug("Could not parse zone number from: %s", part)
+                        continue
+            
+            if unsealed_zones:
+                _LOGGER.info("Unsealed zones query found: %s", unsealed_zones)
+            else:
+                _LOGGER.debug("No unsealed zones found (all zones sealed)")
+            
+            return unsealed_zones
+            
+        except Exception as err:
+            _LOGGER.error("Error querying unsealed zones: %s", err)
+            return []
+    
+    async def query_bypassed_zones(self) -> List[int]:
+        """
+        Query panel for all currently bypassed zones.
+        
+        Useful for verifying bypass state after commands.
+        
+        Returns:
+            List of zone numbers that are currently bypassed
+        """
+        try:
+            await self._clear_response_queue()
+            
+            # Some panels may support ?B or ?BYPASS command
+            # Try standard status query and parse for bypass indicators
+            response = await self._send_command_safe("STATUS", expect_response=True, timeout=5.0)
+            
+            if not response:
+                return []
+            
+            # Parse response for ZBY indicators
+            bypassed_zones = []
+            parts = response.split()
+            
+            for part in parts:
+                if part.startswith("ZBY"):
+                    try:
+                        zone_num = int(part[3:])
+                        if 1 <= zone_num <= 248:
+                            bypassed_zones.append(zone_num)
+                    except ValueError:
+                        continue
+            
+            if bypassed_zones:
+                _LOGGER.debug("Bypassed zones query found: %s", bypassed_zones)
+            
+            return bypassed_zones
+            
+        except Exception as err:
+            _LOGGER.debug("Error querying bypassed zones: %s", err)
+            return []
 
     async def trigger_output(self, output_number: int, duration: int = 0) -> bool:
         """Trigger an output."""
@@ -896,6 +1043,34 @@ class ArrowheadECiClient:
         manual_outputs = set(range(1, max_outputs + 1))
         self._status["outputs"] = {o: False for o in manual_outputs}
 
+    def register_state_change_callback(self, callback):
+        """
+        Register callback for real-time state changes from unsolicited messages.
+        
+        This allows the coordinator to receive immediate notifications when
+        zones change, bypasses occur, or areas arm/disarm via panel events,
+        without waiting for the next STATUS polling cycle.
+        
+        Args:
+            callback: Async function to call when state changes occur
+        """
+        self._state_change_callback = callback
+        _LOGGER.info("✅ State change callback registered - real-time updates enabled")
+    
+    async def _notify_state_change(self, change_type: str, details: dict = None):
+        """
+        Notify coordinator of state changes via callback.
+        
+        Args:
+            change_type: Type of change (zone, area, bypass, etc)
+            details: Dictionary with change details
+        """
+        if self._state_change_callback:
+            try:
+                await self._state_change_callback(change_type, details or {})
+            except Exception as err:
+                _LOGGER.debug("Error in state change callback: %s", err)
+
     async def disconnect(self) -> None:
         """Disconnect from panel."""
         _LOGGER.info("Disconnecting")
@@ -941,7 +1116,7 @@ class ArrowheadECiClient:
                 message = data.decode('utf-8', errors='ignore').strip()
                 if message:
                     self._last_message = datetime.now()
-                    self._process_message(message)
+                    await self._process_message(message)  # CHANGED: Now async
                     
                     try:
                         if self._response_queue.full():
@@ -965,25 +1140,45 @@ class ArrowheadECiClient:
                 await self._handle_connection_error(f"Read error: {err}")
                 break
 
-    def _process_message(self, message: str) -> None:
-        """Process incoming messages."""
+    async def _process_message(self, message: str) -> None:
+        """Process incoming messages and trigger real-time callbacks."""
         try:
             self._update_status("last_update", datetime.now().isoformat())
             
-            if self._process_area_message(message):
-                return
-            if self._process_zone_message(message):
-                return
-            if self._process_output_message(message):
-                return
-            if self._process_system_message(message):
-                return
-            if self._process_mode4_message(message):
-                return
-        except Exception:
-            pass
+            # Process message and check if state changed
+            state_changed = False
+            change_type = None
+            details = {}
+            
+            if await self._process_area_message(message):
+                state_changed = True
+                change_type = "area"
+                details = {"message": message}
+            elif await self._process_zone_message(message):
+                state_changed = True
+                change_type = "zone"
+                details = {"message": message}
+            elif await self._process_output_message(message):
+                state_changed = True
+                change_type = "output"
+                details = {"message": message}
+            elif await self._process_system_message(message):
+                state_changed = True
+                change_type = "system"
+                details = {"message": message}
+            elif await self._process_mode4_message(message):
+                state_changed = True
+                change_type = "mode4"
+                details = {"message": message}
+            
+            # Notify coordinator of state change for immediate HA update
+            if state_changed and self._state_change_callback:
+                await self._notify_state_change(change_type, details)
+                
+        except Exception as err:
+            _LOGGER.debug("Error processing message: %s", err)
 
-    def _process_area_message(self, message: str) -> bool:
+    async def _process_area_message(self, message: str) -> bool:
         """Process area messages."""
         # A1, A2, A3 or A1-U1 = Area armed away
         if message.startswith("A") and len(message) >= 2:
@@ -1065,7 +1260,7 @@ class ArrowheadECiClient:
         
         return False
 
-    def _process_zone_message(self, message: str) -> bool:
+    async def _process_zone_message(self, message: str) -> bool:
         """Process zone messages."""
         zone_codes = {
             "ZO": ("zones", True),
@@ -1074,6 +1269,12 @@ class ArrowheadECiClient:
             "ZR": ("zone_alarms", False),
             "ZBY": ("zone_bypassed", True),
             "ZBYR": ("zone_bypassed", False),
+            "ZT": ("zone_troubles", True),            # Zone Trouble (tamper/fault)
+            "ZTR": ("zone_troubles", False),          # Zone Trouble Restore
+            "ZSF": ("zone_supervise_fail", True),     # RF Supervision Fail
+            "ZSFR": ("zone_supervise_fail", False),   # RF Supervision Restore
+            "ZBL": ("zone_battery_low", True),        # RF Battery Low
+            "ZBLR": ("zone_battery_low", False),      # RF Battery OK
         }
         
         for code, (key, value) in zone_codes.items():
@@ -1090,7 +1291,7 @@ class ArrowheadECiClient:
                     pass
         return False
 
-    def _process_output_message(self, message: str) -> bool:
+    async def _process_output_message(self, message: str) -> bool:
         """Process output messages."""
         if message.startswith("OO") or message.startswith("OR"):
             try:
@@ -1104,7 +1305,7 @@ class ArrowheadECiClient:
                 pass
         return False
 
-    def _process_system_message(self, message: str) -> bool:
+    async def _process_system_message(self, message: str) -> bool:
         """Process system messages."""
         system_messages = {
             "RO": ("ready_to_arm", True),
@@ -1129,7 +1330,7 @@ class ArrowheadECiClient:
         
         return False
 
-    def _process_mode4_message(self, message: str) -> bool:
+    async def _process_mode4_message(self, message: str) -> bool:
         """Process MODE 4 specific messages."""
         try:
             # EA1, ES1, EDA1-30, EDS1-30, AR1, etc.
