@@ -22,7 +22,7 @@
 
 <div align="center">
 <h3>📢 Important Version Notice</h3>
-<p><strong>Version 2.0.1+</strong>: ECi Series only (MODE 4 support, enhanced features)</p>
+<p><strong>Version 2.1.1+</strong>: ECi Series only (MODE 4 support, enhanced features)</p>
 <p><strong>Version 1.x</strong>: <a href="https://github.com/thanoskas/arrowhead_alarm/tree/v1.0.0">ESX Elite-SX support available here</a></p>
 </div>
 
@@ -34,47 +34,49 @@
 
 ---
 
-## 🎉 What's New in Version 2.0.1
+## 🎉 What's New in Version 2.2.0
 
-<div align="center">
-<table>
-<tr>
-<th>Feature</th>
-<th>Version 1.x</th>
-<th>Version 2.0.1</th>
-</tr>
-<tr>
-<td><strong>Panel Support</strong></td>
-<td>ESX + ECi</td>
-<td>ECi Only</td>
-</tr>
-<tr>
-<td><strong>MODE 4 Protocol</strong></td>
-<td>❌ Not Available</td>
-<td>✅ Full Support</td>
-</tr>
-<tr>
-<td><strong>Individual Area Panels</strong></td>
-<td>❌ Single Panel Only</td>
-<td>✅ Per-Area Control</td>
-</tr>
-<tr>
-<td><strong>Keypad Alarms</strong></td>
-<td>❌ Not Available</td>
-<td>✅ Panic/Fire/Medical</td>
-</tr>
-<tr>
-<td><strong>Bulk Operations</strong></td>
-<td>❌ Limited</td>
-<td>✅ Full Support</td>
-</tr>
-<tr>
-<td><strong>Sealed Zone Support</strong></td>
-<td>⚠️ Basic</td>
-<td>✅ Enhanced</td>
-</tr>
-</table>
-</div>
+### Inproved event hadnling
+
+✅ Better commands handilg (handle message sequences)
+✅ Real-time updates (<200ms instead of 0-30 sec)
+✅ No more "Failed to bypass" errors
+✅ Instant zone state changes
+✅ Responsive UI
+
+
+## 🎉 What's New in Version 2.1.1
+
+### 🚀 Full Individual Area Control
+
+**Two-Tier System:**
+- **Main Panel Entity**: Arms/disarms ALL areas simultaneously (MODE 4)
+- **Area Entities**: Individual control per area (MODE 4 ARM, MODE 2 DISARM)
+
+**Key Features:**
+- ✅ **Individual Area Arming**: ARMAREA/STAYAREA commands (requires P74E/P76E configuration)
+- ✅ **Individual Area Disarm**: Automatic MODE 2/4 switching for area-specific disarm
+- ✅ **Smart Protocol**: Client handles mode switching automatically
+
+**Panel Requirements:**
+- `P74E` - Configure areas for individual away arming
+- `P76E` - Configure areas for individual stay arming
+
+> **Note**: Without P74E/P76E configuration, ARMAREA/STAYAREA will fail with ERR 2
+
+---
+
+## 📊 Version Comparison
+
+| Feature | v1.x | v2.1.1 |
+|---------|------|--------|
+| **Panel Support** | ESX + ECi | ECi Only |
+| **MODE 4 Protocol** | ❌ | ✅ Full Support |
+| **Individual Areas** | ❌ | ✅ Per-Area Control |
+| **Individual Disarm** | ❌ | ✅ MODE 2 Support |
+| **Keypad Alarms** | ❌ | ✅ Panic/Fire/Medical |
+| **Bulk Operations** | ⚠️ Limited | ✅ Full Support |
+| **Sealed Zones** | ⚠️ Basic | ✅ Enhanced |
 
 ### 🚀 Major Changes
 
@@ -91,14 +93,14 @@
 **For ECi Users:**
 1. ✅ Backup your current configuration
 2. ✅ Remove v1.x integration
-3. ✅ Install v2.0.1
+3. ✅ Install v2.1.1
 4. ✅ Reconfigure with manual area specification
 5. ✅ Update automations with new entity IDs
 
 **For ESX Users:**
 - ❌ Stay on [v1.x](https://github.com/thanoskas/arrowhead_alarm/tree/v1.0.0) - ESX support removed in v2.0.1
 
-> **Breaking Change**: Version 2.0.1 only supports ECi Series panels. ESX Elite-SX users should continue using version 1.x.
+> **Breaking Change**: Version 2.0.1+ only supports ECi Series panels. ESX Elite-SX users should continue using version 1.x.
 
 ---
 
@@ -125,12 +127,12 @@ Before installing the Home Assistant integration, you **must** configure your Ar
    - Go to P201E4E (Network Settings)
    - Enable Serial Over IP functionality
    - Note the IP address and port (default: 9000)
-
-3. **Configure Serial Authorization**
+   - 
+3. **~~Configure Serial Authorization~~** ⚠️ **DO NOT ENABLE**
    - Navigate to P25E19-21E (Serial Port Options)
    - Select Option C under the options tab
-   - Enable Serial Authorization
-
+   - ~~Enable Serial Authorization~~ **LEAVE DISABLED**
+    
 4. **Save Configuration**
    - Save all changes and exit programming mode
    - The panel may require a restart to apply network settings
@@ -256,13 +258,13 @@ Before installing the Home Assistant integration, you **must** configure your Ar
 
 1. **Download Files**:
    ```bash
-   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.0.1.zip
-   unzip v2.0.1.zip
+   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.2.0.zip
+   unzip v2.2.0.zip
    ```
 
 2. **Copy Integration**:
    ```bash
-   cp -r arrowhead_alarm-2.0.1/custom_components/arrowhead_alarm /config/custom_components/
+   cp -r arrowhead_alarm-2.2.0/custom_components/arrowhead_alarm /config/custom_components/
    ```
 
 3. **Restart Home Assistant** and add the integration through the UI.
@@ -288,10 +290,15 @@ The integration uses a **guided configuration wizard** with the following steps:
 | **Host** | IP address of ECi panel | - | Yes |
 | **Port** | TCP port for communication | 9000 | No |
 | **User PIN** | User number and PIN code | "1 123" | Yes |
-| **Username** | Admin username | "admin" | No |
-| **Password** | Admin password | "admin" | No |
+| **Username** | ~~Admin username~~ | "admin" | No |
+| **Password** | ~~Admin password~~ | "admin" | No |
 | **Areas** | Active areas (comma-separated) | "1" | Yes |
 | **Max Outputs** | Number of outputs to control | 4 | No |
+
+
+
+> **⚠️ Authentication Note**: Username/password authentication is **NOT currently supported**. The ECi panel uses **no encryption** for TCP/IP communication. Only User PIN is required for arm/disarm operations.
+
 
 #### User PIN Format
 
@@ -708,7 +715,7 @@ pytest tests/
 
 Please include:
 - Home Assistant version
-- Integration version (2.0.1)
+- Integration version (2.1.0)
 - ECi firmware version
 - Debug logs (sanitized)
 - Steps to reproduce
