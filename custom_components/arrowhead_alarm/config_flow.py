@@ -337,7 +337,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 while not client._response_queue.empty():
                     try:
                         client._response_queue.get_nowait()
-                    except:
+                    except asyncio.QueueEmpty:
                         break
             
             # Get firmware version
@@ -411,7 +411,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 while not client._response_queue.empty():
                     try:
                         client._response_queue.get_nowait()
-                    except:
+                    except asyncio.QueueEmpty:
                         break
             
             # Check current mode first
@@ -606,7 +606,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     try:
                         client._response_queue.get_nowait()
                         cleared += 1
-                    except:
+                    except asyncio.QueueEmpty:
                         break
             await asyncio.sleep(0.5)
         except Exception as err:
@@ -795,7 +795,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if isinstance(areas, str):
             try:
                 areas = [int(x.strip()) for x in areas.split(",") if x.strip().isdigit()]
-            except:
+            except (ValueError, AttributeError):
                 areas = [1]
         elif not isinstance(areas, list):
             areas = [1]
@@ -895,6 +895,11 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
         else:
             display_areas = str(current_areas)
 
+        # Check if MODE 4 is supported
+        mode_4_info = ""
+        if self.config_entry.data.get("supports_mode_4", False):
+            mode_4_info = "🚀 **MODE 4 Protocol Active** - Enhanced features enabled"
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
@@ -931,6 +936,9 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
                     default=False
                 ): bool,
             }),
+            description_placeholders={
+                "mode_4_info": mode_4_info,
+            }
         )
 
     async def async_step_zone_names(self, base_options: Dict[str, Any]) -> FlowResult:
