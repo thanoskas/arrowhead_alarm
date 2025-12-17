@@ -337,7 +337,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 while not client._response_queue.empty():
                     try:
                         client._response_queue.get_nowait()
-                    except:
+                    except asyncio.QueueEmpty:
                         break
             
             # Get firmware version
@@ -411,7 +411,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 while not client._response_queue.empty():
                     try:
                         client._response_queue.get_nowait()
-                    except:
+                    except asyncio.QueueEmpty:
                         break
             
             # Check current mode first
@@ -606,7 +606,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     try:
                         client._response_queue.get_nowait()
                         cleared += 1
-                    except:
+                    except asyncio.QueueEmpty:
                         break
             await asyncio.sleep(0.5)
         except Exception as err:
@@ -795,7 +795,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if isinstance(areas, str):
             try:
                 areas = [int(x.strip()) for x in areas.split(",") if x.strip().isdigit()]
-            except:
+            except (ValueError, AttributeError):
                 areas = [1]
         elif not isinstance(areas, list):
             areas = [1]
