@@ -70,20 +70,15 @@ class ArrowheadZoneBypassButton(CoordinatorEntity, ButtonEntity):
 
     def _get_zone_name(self, config_entry: ConfigEntry, zone_id: int) -> str:
         """Get zone name from config entry options or use default."""
-        # Check config entry data first (from initial setup)
-        zone_names = config_entry.data.get("zone_names", {})
-        zone_name = zone_names.get(f"zone_{zone_id}")
-        
-        if not zone_name:
-            # Check options (from options flow)
-            zone_names = config_entry.options.get("zone_names", {})
-            zone_name = zone_names.get(f"zone_{zone_id}")
-        
-        if not zone_name:
-            # Use default zone name
-            zone_name = self._get_default_zone_name(zone_id)
-            
-        return zone_name
+        # Options (from options flow) take precedence over initial setup data.
+        # Names are stored under "zone_{id}_name"; "zone_{id}" is the legacy key.
+        for zone_names in (config_entry.options.get("zone_names", {}),
+                           config_entry.data.get("zone_names", {})):
+            zone_name = zone_names.get(f"zone_{zone_id}_name") or zone_names.get(f"zone_{zone_id}")
+            if zone_name:
+                return zone_name
+
+        return self._get_default_zone_name(zone_id)
 
     def _get_default_zone_name(self, zone_id: int) -> str:
         """Get default zone name with zero-padding format."""

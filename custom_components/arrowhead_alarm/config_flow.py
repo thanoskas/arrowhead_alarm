@@ -866,22 +866,23 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         """Manage the options."""
         if user_input is not None:
-            if user_input.get("configure_zone_names", False):
-                base_options = {k: v for k, v in user_input.items() if k != "configure_zone_names"}
-                return await self.async_step_zone_names(base_options)
-            else:
-                # Validate areas before saving
-                if CONF_AREAS in user_input:
-                    areas_str = user_input[CONF_AREAS]
-                    try:
-                        areas = [int(x.strip()) for x in areas_str.split(",") if x.strip().isdigit()]
-                        if len(areas) > 8:
-                            areas = areas[:8]
-                            user_input[CONF_AREAS] = ",".join(map(str, areas))
-                    except (ValueError, AttributeError):
-                        user_input[CONF_AREAS] = "1"
-                        
-                return self.async_create_entry(title="", data=user_input)
+            # Validate areas before saving
+            if CONF_AREAS in user_input:
+                areas_str = user_input[CONF_AREAS]
+                try:
+                    areas = [int(x.strip()) for x in areas_str.split(",") if x.strip().isdigit()]
+                    if len(areas) > 8:
+                        areas = areas[:8]
+                        user_input[CONF_AREAS] = ",".join(map(str, areas))
+                except (ValueError, AttributeError):
+                    user_input[CONF_AREAS] = "1"
+
+            if user_input.pop("configure_zone_names", False):
+                # Keep the settings from this form and continue to zone naming
+                self._base_options = user_input
+                return await self.async_step_zone_names()
+
+            return self.async_create_entry(title="", data=user_input)
 
         # Get current configuration
         current_max_zones = self.config_entry.data.get(CONF_MAX_ZONES, 16)
@@ -941,12 +942,26 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
             }
         )
 
-    async def async_step_zone_names(self, base_options: Dict[str, Any]) -> FlowResult:
+    async def async_step_zone_names(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
         """Configure zone names in options."""
-        if "zone_names" in base_options:
-            return self.async_create_entry(title="", data=base_options)
-            
         current_zone_names = self.config_entry.options.get("zone_names", {})
+
+        if user_input is not None:
+            # Merge submitted names over the stored ones; an emptied field
+            # removes the custom name so the default applies again.
+            zone_names = dict(current_zone_names)
+            for key, value in user_input.items():
+                if not key.endswith("_name"):
+                    continue
+                cleaned = value.strip() if isinstance(value, str) else ""
+                if cleaned:
+                    zone_names[key] = cleaned
+                else:
+                    zone_names.pop(key, None)
+
+            options = dict(getattr(self, "_base_options", None) or {})
+            options["zone_names"] = zone_names
+            return self.async_create_entry(title="", data=options)
         
         # Get detected zones from coordinator if available
         detected_zones = []
