@@ -415,6 +415,39 @@ class ArrowheadECiClient:
                 _LOGGER.error("❌ Response error: %s", err)
             return None
 
+    # Prefixes of unsolicited event messages (longest first so e.g. ZBYR
+    # is not consumed by the ZBY check). These arrive at any time and must
+    # not be mistaken for command replies.
+    _EVENT_ZONE_PREFIXES = (
+        "ZBYR", "ZSFR", "ZBLR", "ZEDS", "ZTR", "ZBY", "ZSF", "ZBL",
+        "ZT", "ZO", "ZC", "ZA", "ZR",
+    )
+    _EVENT_MODE4_PREFIXES = ("EDA", "EDS", "EA", "ES", "AR")
+    _EVENT_SYSTEM_MESSAGES = ("MF", "MR", "BF", "BR", "TA", "TR", "LF", "LR")
+
+    def _is_event_message(self, message: str) -> bool:
+        """Return True if message is an unsolicited event, not a command reply."""
+        if not message:
+            return False
+        for prefix in self._EVENT_ZONE_PREFIXES:
+            if message.startswith(prefix) and message[len(prefix):].isdigit():
+                return True
+        # MODE 4 timing events: EA1, ES1, EDA1-30, EDS1-30, AR1
+        for prefix in self._EVENT_MODE4_PREFIXES:
+            rest = message[len(prefix):]
+            if message.startswith(prefix) and rest[:1].isdigit():
+                return True
+        # Output events: OO3 / OR3
+        if message[:2] in ("OO", "OR") and message[2:].isdigit():
+            return True
+        # Area events: A1, D1, S1 (optionally with -U suffix, e.g. A1-U1)
+        if message[:1] in ("A", "D", "S") and message[1:].split("-", 1)[0].isdigit():
+            return True
+        # Ready / not-ready: RO1, NR1
+        if message[:2] in ("RO", "NR") and message[2:].isdigit():
+            return True
+        return message in self._EVENT_SYSTEM_MESSAGES
+
     async def _send_command_safe(self, command: str, expect_response: bool = False, timeout: float = 10.0) -> Optional[str]:
         """Send command safely with debug logging."""
         try:
@@ -422,19 +455,36 @@ class ArrowheadECiClient:
                 if self.debug_raw_comms:
                     _LOGGER.error("❌ Cannot send '%s': not connected", command)
                 return None
-            
+
             await self._send_raw_safe(f"{command}\n")
-            
+
             if expect_response:
-                response = await asyncio.wait_for(self._get_response_safe(), timeout=timeout)
-                
-                if self.debug_raw_comms:
-                    if response:
-                        _LOGGER.info("✅ Command '%s' → Response: %r", command, response)
-                    else:
-                        _LOGGER.warning("⚠️ Command '%s' → No response", command)
-                
-                return response
+                # Wait for the actual command reply, skipping unsolicited
+                # event messages (zone/area/output changes) that can arrive
+                # in between; those are already handled by _process_message.
+                loop = asyncio.get_running_loop()
+                deadline = loop.time() + timeout
+                while True:
+                    remaining = deadline - loop.time()
+                    if remaining <= 0:
+                        raise asyncio.TimeoutError
+                    response = await asyncio.wait_for(self._response_queue.get(), timeout=remaining)
+
+                    if self.debug_raw_comms and response:
+                        _LOGGER.info("📥 RAW RX: %r", response)
+
+                    if response and self._is_event_message(response):
+                        if self.debug_raw_comms:
+                            _LOGGER.debug("↪️ Skipping event %r while waiting for '%s' reply", response, command)
+                        continue
+
+                    if self.debug_raw_comms:
+                        if response:
+                            _LOGGER.info("✅ Command '%s' → Response: %r", command, response)
+                        else:
+                            _LOGGER.warning("⚠️ Command '%s' → No response", command)
+
+                    return response
         except asyncio.TimeoutError:
             if self.debug_raw_comms:
                 _LOGGER.warning("⏱️ Command '%s' timeout (%ss)", command, timeout)
