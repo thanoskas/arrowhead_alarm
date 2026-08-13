@@ -29,8 +29,8 @@ PANEL_NAME = "ECi Series"
 # Default values
 DEFAULT_PORT = 9000
 DEFAULT_USER_PIN = "1 123"
-DEFAULT_USERNAME = "admin"
-DEFAULT_PASSWORD = "admin"
+DEFAULT_USERNAME = ""
+DEFAULT_PASSWORD = ""
 DEFAULT_MAX_OUTPUTS = 4
 
 # Protocol modes for ECi

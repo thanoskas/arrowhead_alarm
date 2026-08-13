@@ -277,8 +277,8 @@ The integration uses a **guided configuration wizard** with the following steps:
 | **Host** | IP address of ECi panel | - | Yes |
 | **Port** | TCP port for communication | 9000 | No |
 | **User PIN** | User number and PIN code | "1 123" | Yes |
-| **Username** | ~~Admin username~~ | "admin" | No |
-| **Password** | ~~Admin password~~ | "admin" | No |
+| **Username** | ~~Admin username~~ (not used) | blank | No |
+| **Password** | ~~Admin password~~ (not used) | blank | No |
 | **Areas** | Active areas (comma-separated) | "1" | Yes |
 | **Max Outputs** | Number of outputs to control | 4 | No |
 

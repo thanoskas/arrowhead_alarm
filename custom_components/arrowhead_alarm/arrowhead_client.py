@@ -58,8 +58,8 @@ class ConnectionState(Enum):
 class ArrowheadECiClient:
     """ECi client with correct single area detection."""
 
-    def __init__(self, host: str, port: int, user_pin: str, username: str = "admin", 
-                 password: str = "admin", debug_raw_comms: bool = True):
+    def __init__(self, host: str, port: int, user_pin: str, username: str = "",
+                 password: str = "", debug_raw_comms: bool = True):
         """Initialize the ECi client."""
         self.host = host
         self.port = port

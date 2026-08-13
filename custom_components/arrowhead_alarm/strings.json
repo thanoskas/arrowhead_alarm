@@ -15,8 +15,8 @@
           "host": "The IP address where your ECi panel can be reached",
           "port": "TCP port for communication (default: 9000)",
           "user_pin": "User number and PIN code separated by space (e.g., '1 123')",
-          "username": "Admin username (typically 'admin')",
-          "password": "Admin password (typically 'admin')"
+          "username": "Not currently used - leave blank",
+          "password": "Not currently used - leave blank"
         }
       },
       "zone_config": {
