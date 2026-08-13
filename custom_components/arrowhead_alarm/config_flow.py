@@ -986,6 +986,6 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
             step_id="zone_names",
             data_schema=vol.Schema(schema_dict),
             description_placeholders={
-                "zone_count": len(detected_zones),
+                "zone_count": str(len(detected_zones)),
             }
         )
