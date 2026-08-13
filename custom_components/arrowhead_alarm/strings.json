@@ -1,4 +1,4 @@
-{
+﻿{
   "config": {
     "step": {
       "user": {
@@ -30,7 +30,7 @@
         },
         "data_description": {
           "auto_detect_zones": "Automatically detect zones from your ECi panel's configuration using status parsing",
-          "max_zones": "Override detected zone limit if needed (8-248 for ECi panels)",
+          "max_zones": "Override detected zone limit if needed (1-248 for ECi panels)",
           "areas": "Specify which areas are active (e.g., '1' for single area, '1,2,3' for multiple) - REQUIRED",
           "configure_zone_names": "Set custom names for detected zones instead of 'Zone 001', etc."
         }
@@ -94,7 +94,7 @@
           "timeout": "Maximum time to wait for panel responses (5-60 seconds)",
           "enable_debug_logging": "Enable detailed logging for troubleshooting issues",
           "auto_detect_zones": "Automatically detect zones from ECi panel configuration using status parsing",
-          "max_zones": "Maximum zone number to monitor (8-248 for ECi panels)",
+          "max_zones": "Maximum zone number to monitor (1-248 for ECi panels)",
           "areas": "Active areas as comma-separated numbers (1-32 for ECi panels) - REQUIRED MANUAL INPUT",
           "max_outputs": "How many outputs to create switches for (1-32 for ECi panels)",
           "configure_zone_names": "Set custom names for your zones"

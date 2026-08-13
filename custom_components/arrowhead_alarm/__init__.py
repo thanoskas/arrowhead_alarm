@@ -278,7 +278,7 @@ async def _validate_entry_configuration(entry: ConfigEntry) -> Dict[str, Any]:
         auto_detect_zones = entry.data.get(CONF_AUTO_DETECT_ZONES, True)
         max_zones = entry.data.get(CONF_MAX_ZONES, 16)
         
-        if not isinstance(max_zones, int) or max_zones < 8 or max_zones > 248:
+        if not isinstance(max_zones, int) or max_zones < 1 or max_zones > 248:
             result["errors"].append(f"Invalid max_zones: {max_zones}")
             result["valid"] = False
         else:

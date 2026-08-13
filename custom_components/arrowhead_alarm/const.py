@@ -205,7 +205,7 @@ VALIDATION_ERRORS = {
     "invalid_areas": "Areas must be comma-separated numbers between 1 and 32 (e.g., '1,2,3')",
     "too_many_areas": "Maximum 8 areas supported for optimal performance",
     "invalid_zone_name": "Zone name must be 1-50 characters, alphanumeric with spaces, hyphens, underscores, dots",
-    "invalid_max_zones": "Max zones must be between 8 and 248",
+    "invalid_max_zones": "Max zones must be between 1 and 248",
     "invalid_max_outputs": "Max outputs must be between 1 and 32",
 }
 

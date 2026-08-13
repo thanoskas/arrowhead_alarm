@@ -922,7 +922,7 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_MAX_ZONES,
                     default=current_max_zones
-                ): vol.All(vol.Coerce(int), vol.Range(min=8, max=248)),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=248)),
                 vol.Required(
                     CONF_AREAS,
                     default=display_areas
