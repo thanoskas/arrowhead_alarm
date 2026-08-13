@@ -624,9 +624,13 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             if (panel_armed or any_area_armed) and self._arming_state == "arming":
                 self._stop_arming_sequence()
                 self._update_arming_state("armed")
-            # If panel reports not arming and not armed, stop the sequence
-            elif not panel_arming and not panel_armed and not any_area_armed and self._arming_state == "arming":
-                self._stop_arming_sequence()
+            # While the local exit-delay timer runs, stay in "arming" - the
+            # panel reports nothing until it actually arms, so resetting here
+            # made the entity dip to Disarmed during the exit delay (issue #7).
+            # Only fall back to idle once the timer has expired without the
+            # panel ever reporting armed (i.e. the arm attempt failed).
+            elif (not panel_arming and not panel_armed and not any_area_armed
+                  and self._arming_state == "arming" and self._arming_start_time is None):
                 self._update_arming_state("idle")
                 
             # MODE 4: Check for entry delay states

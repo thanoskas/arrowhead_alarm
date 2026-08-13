@@ -217,6 +217,7 @@ class ArrowheadECiClient:
                 
                 self._connection_state = ConnectionState.CONNECTED
                 self._update_status("connection_state", self._connection_state.value)
+                self._update_status("status_message", "Connected")
                 self._reconnect_attempts = 0
                 
                 self._keep_alive_task = asyncio.create_task(self._keep_alive())
@@ -1127,7 +1128,8 @@ class ArrowheadECiClient:
         
         self._connection_state = ConnectionState.DISCONNECTED
         self._update_status("connection_state", self._connection_state.value)
-        
+        self._update_status("status_message", "Disconnected")
+
         tasks_to_cancel = [self._keep_alive_task, self._read_task, self._reconnect_task]
         
         for task in tasks_to_cancel:
@@ -1240,7 +1242,8 @@ class ArrowheadECiClient:
                     area_key = f"area_{chr(96 + area_num)}_armed"
                     self._status[area_key] = True
                     self._status["armed"] = True
-                    self._status["arming"] = False
+                    self._status.setdefault("area_exit_delays", {}).pop(area_num, None)
+                    self._status["arming"] = bool(self._status["area_exit_delays"])
                     self._status["stay_mode"] = False
                     if self.debug_raw_comms:
                         _LOGGER.info("🔒 Area %d armed (away)", area_num)
@@ -1259,6 +1262,8 @@ class ArrowheadECiClient:
                     self._status[area_key] = False
                     any_armed = any(self._status.get(f"area_{chr(96 + i)}_armed", False) for i in range(1, 4))
                     self._status["armed"] = any_armed
+                    self._status.setdefault("area_exit_delays", {}).pop(area_num, None)
+                    self._status["arming"] = bool(self._status["area_exit_delays"])
                     self._status["stay_mode"] = False
                     if self.debug_raw_comms:
                         _LOGGER.info("🔓 Area %d disarmed", area_num)
@@ -1277,7 +1282,8 @@ class ArrowheadECiClient:
                     self._status[area_key] = True
                     self._status["armed"] = True
                     self._status["stay_mode"] = True
-                    self._status["arming"] = False
+                    self._status.setdefault("area_exit_delays", {}).pop(area_num, None)
+                    self._status["arming"] = bool(self._status["area_exit_delays"])
                     if self.debug_raw_comms:
                         _LOGGER.info("🏠 Area %d armed (stay)", area_num)
                     return True
@@ -1383,9 +1389,24 @@ class ArrowheadECiClient:
     async def _process_mode4_message(self, message: str) -> bool:
         """Process MODE 4 specific messages."""
         try:
-            # EA1, ES1, EDA1-30, EDS1-30, AR1, etc.
-            if (message.startswith("EA") or message.startswith("ES") or 
-                message.startswith("EDA") or message.startswith("EDS") or
+            # EDA1-30 / EDS1-30 = exit delay started for area (away/stay)
+            for prefix in ("EDA", "EDS"):
+                rest = message[len(prefix):]
+                if message.startswith(prefix) and rest[:1].isdigit():
+                    parts = rest.split("-", 1)
+                    area_num = int(parts[0])
+                    delays = self._status.setdefault("area_exit_delays", {})
+                    try:
+                        delays[area_num] = int(parts[1]) if len(parts) > 1 else 0
+                    except ValueError:
+                        delays[area_num] = 0
+                    self._status["arming"] = True
+                    if self.debug_raw_comms:
+                        _LOGGER.info("⏳ Area %d exit delay started (%s)", area_num, message)
+                    return True
+
+            # EA1, ES1, ZEDS1, AR1, etc. - recognized, no state change yet
+            if (message.startswith("EA") or message.startswith("ES") or
                 message.startswith("ZEDS") or message.startswith("AR")):
                 return True
         except Exception:
@@ -1396,6 +1417,7 @@ class ArrowheadECiClient:
         """Handle connection errors."""
         self._connection_state = ConnectionState.ERROR
         self._update_status("connection_state", self._connection_state.value)
+        self._update_status("status_message", f"Connection error: {error_msg}")
         self._status["communication_errors"] = self._status.get("communication_errors", 0) + 1
         await self.disconnect()
 
