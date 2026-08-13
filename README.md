@@ -34,11 +34,21 @@
 
 ---
 
+## 🎉 What's New in Version 2.2.4 / 2.2.3
+
+- ✅ **Small panels supported** - setups with fewer than 8 zones no longer fail with "Invalid max_zones" (#5)
+- ✅ **Reliable commands** - panel events arriving while a command waited for its reply are no longer mistaken for the response (#6)
+- ✅ **Correct arming state** - the main panel entity stays in Arming/Pending during the exit delay instead of dipping to Disarmed (#7)
+- ✅ **Zone naming fixed** - custom zone names entered in the options flow are now saved and applied (#2)
+- ✅ **Brand icon** - the Arrowhead icon is bundled and shown by Home Assistant 2026.3+
+
+See [CHANGELOG.md](CHANGELOG.md) for full details.
+
 ## 🎉 What's New in Version 2.2.0
 
-### Inproved event hadnling
+### Improved event handling
 
-✅ Better commands handilg (handle message sequences)
+✅ Better command handling (handles message sequences)
 ✅ Real-time updates (<200ms instead of 0-30 sec)
 ✅ No more "Failed to bypass" errors
 ✅ Instant zone state changes
@@ -114,8 +124,7 @@ Before installing the Home Assistant integration, you **must** configure your Ar
 
 ### Serial Port Options (P25E19-21E)
 
-- Enable **Serial Authorization** in Option C under the options tab
-- This setting is essential for the integration to authenticate with the panel
+- Leave **Serial Authorization** (Option C under the options tab) **disabled** - the integration does not use username/password authentication; only the User PIN is sent for arm/disarm
 
 ### Configuration Steps
 
@@ -127,12 +136,12 @@ Before installing the Home Assistant integration, you **must** configure your Ar
    - Go to P201E4E (Network Settings)
    - Enable Serial Over IP functionality
    - Note the IP address and port (default: 9000)
-   - 
-3. **~~Configure Serial Authorization~~** ⚠️ **DO NOT ENABLE**
+
+3. **Check Serial Authorization** ⚠️ **DO NOT ENABLE**
    - Navigate to P25E19-21E (Serial Port Options)
    - Select Option C under the options tab
-   - ~~Enable Serial Authorization~~ **LEAVE DISABLED**
-    
+   - Make sure Serial Authorization is **LEFT DISABLED**
+
 4. **Save Configuration**
    - Save all changes and exit programming mode
    - The panel may require a restart to apply network settings
@@ -202,28 +211,6 @@ This integration provides complete Home Assistant support for **Arrowhead ECi Se
 
 ---
 
-## ⚠️ Panel Configuration Required
-
-Before installing the Home Assistant integration, you **must** configure your Arrowhead ECi panel with the following settings:
-
-### Network Settings (P201E4E)
-
-1. Access panel programming mode
-2. Navigate to **P201E4E** (Network Settings)
-3. Enable **Serial Over IP** functionality
-4. Note the IP address and port (default: 9000)
-
-### Serial Port Options (P25E19-21E)
-
-1. Navigate to **P25E19-21E** (Serial Port Options)
-2. Go to the **Options** tab
-3. Select **Option C**
-4. Enable **Serial Authorization**
-
-> **Important**: Without these settings, the integration cannot communicate with your panel!
-
----
-
 ## 📥 Installation
 
 ### HACS Installation (Recommended)
@@ -258,13 +245,13 @@ Before installing the Home Assistant integration, you **must** configure your Ar
 
 1. **Download Files**:
    ```bash
-   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.2.0.zip
-   unzip v2.2.0.zip
+   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.2.4.zip
+   unzip v2.2.4.zip
    ```
 
 2. **Copy Integration**:
    ```bash
-   cp -r arrowhead_alarm-2.2.0/custom_components/arrowhead_alarm /config/custom_components/
+   cp -r arrowhead_alarm-2.2.4/custom_components/arrowhead_alarm /config/custom_components/
    ```
 
 3. **Restart Home Assistant** and add the integration through the UI.
@@ -581,13 +568,12 @@ automation:
 - ✅ Verify IP address and port (default: 9000)
 - ✅ Check network connectivity
 - ✅ Ensure Serial Over IP is enabled (P201E4E)
-- ✅ Verify Serial Authorization enabled (P25E19-21E Option C)
+- ✅ Verify Serial Authorization is **disabled** (P25E19-21E Option C)
 
 **Problem**: Authentication failed  
 **Solutions**:
 - ✅ Check User PIN format: `"1 123"` (with space!)
-- ✅ Verify username/password (default: admin/admin)
-- ✅ Ensure Serial Authorization is enabled
+- ✅ Ensure Serial Authorization is **disabled** (username/password auth is not supported)
 - ✅ Try different user account
 
 ### Zone Detection Issues
@@ -700,14 +686,14 @@ wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v1.0.0.zip
 
 ## 🤝 Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! See [contributing.md](contributing.md) for guidelines.
 
 ### Development Setup
 
 ```bash
 git clone https://github.com/thanoskas/arrowhead_alarm.git
 cd arrowhead_alarm
-pip install -r requirements-dev.txt
+pip install pytest pytest-asyncio pytest-homeassistant-custom-component
 pytest tests/
 ```
 
@@ -715,7 +701,7 @@ pytest tests/
 
 Please include:
 - Home Assistant version
-- Integration version (2.1.0)
+- Integration version (Settings → Devices & Services → Arrowhead Alarm Panel, or HACS)
 - ECi firmware version
 - Debug logs (sanitized)
 - Steps to reproduce
