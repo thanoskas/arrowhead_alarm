@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.2.3] - 2026-08-13
+
+### Fixed
+
+- **Setup no longer fails with "Invalid max_zones: 7"** (#5) - panels with
+  fewer than 8 zones are now accepted everywhere (1-248).
+- **Main alarm entity no longer drops to Disarmed during exit delay** (#7) -
+  it now stays in Arming/Pending until the panel reports armed, matching the
+  per-area entities. MODE 4 exit-delay messages (EDA/EDS) are now parsed.
+- **Output and command reliability** (#6) - unsolicited panel events (zone,
+  area, output changes) arriving while a command was waiting for its reply
+  were mistaken for the reply, causing false "Failed to trigger output"
+  errors. Replies are now matched correctly.
+- **Zone names can finally be saved from Panel Options** (#2) - the form no
+  longer loops back empty; submitted names are stored and applied.
+- **status_message attribute** no longer stays stuck on "Initializing".
+- **Integration version** is now reported correctly - previous releases
+  bumped a stray root manifest.json while Home Assistant read the one in
+  custom_components (still 2.0.0).
+
 ## 🎉 What's New in Version 2.2.0
 
 ### Inproved event hadnling
