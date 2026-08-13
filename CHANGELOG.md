@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.4] - 2026-08-13
 
+### Added
+
+- **Integration icon** - the Arrowhead Alarm Products mark is now bundled as
+  `brand/icon.png` / `brand/icon@2x.png`, so Home Assistant 2026.3+ shows the
+  proper brand icon instead of "icon not available" (served via the local
+  Brands Proxy API; no home-assistant/brands PR needed).
+
 ### Fixed
 
 - **Config flow failed to load with "Error while loading .../translations/en.json:
