@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.2.4] - 2026-08-13
+
+### Fixed
+
+- **Config flow failed to load with "Error while loading .../translations/en.json:
+  unexpected character"** - a UTF-8 byte-order mark was accidentally introduced
+  into `strings.json` and `translations/en.json` in v2.2.3, which Home
+  Assistant's JSON loader rejects. Both files are now BOM-free again.
+
 ## [2.2.3] - 2026-08-13
 
 ### Fixed
