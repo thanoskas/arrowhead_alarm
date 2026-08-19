@@ -949,44 +949,37 @@ class ArrowheadECiClient:
     async def query_unsealed_zones(self) -> List[int]:
         """
         Query panel for all currently unsealed (open) zones.
-        
-        Sends '?' command to panel and parses response for zone status.
-        Useful for initializing zone states on startup or after reconnection.
-        
+
+        ECi panels require "STATUS" rather than a standalone "?". The panel
+        then emits asynchronous zone updates (for example ZO001, ZC003) which
+        are processed into self._status["zones"] by the reader before the
+        method returns.
+
         Returns:
             List of zone numbers that are currently open/unsealed
         """
         try:
             await self._clear_response_queue()
-            
-            # Send query command for unsealed zones
-            response = await self._send_command_safe("?", expect_response=True, timeout=5.0)
-            
-            if not response:
-                _LOGGER.debug("No response from unsealed zones query")
+
+            await self._send_command_safe("STATUS")
+            await asyncio.sleep(0.5)
+
+            zones = self._status.get("zones", {})
+            if not zones:
+                _LOGGER.debug("No zone state available yet from status updates")
                 return []
-            
-            # Parse response: Expected format "ZO001 ZO005 ZO012" 
-            unsealed_zones = []
-            parts = response.split()
-            
-            for part in parts:
-                if part.startswith("ZO"):
-                    try:
-                        zone_num = int(part[2:])
-                        if 1 <= zone_num <= 248:  # Valid ECi zone range
-                            unsealed_zones.append(zone_num)
-                    except ValueError:
-                        _LOGGER.debug("Could not parse zone number from: %s", part)
-                        continue
-            
+
+            unsealed_zones = sorted(
+                zone_num for zone_num, is_open in zones.items() if bool(is_open)
+            )
+
             if unsealed_zones:
-                _LOGGER.info("Unsealed zones query found: %s", unsealed_zones)
+                _LOGGER.info("Unsealed zones from status: %s", unsealed_zones)
             else:
                 _LOGGER.debug("No unsealed zones found (all zones sealed)")
-            
+
             return unsealed_zones
-            
+
         except Exception as err:
             _LOGGER.error("Error querying unsealed zones: %s", err)
             return []

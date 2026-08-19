@@ -1,7 +1,7 @@
 """Tests for the ECi client."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -163,6 +163,31 @@ def test_configure_manual_outputs_updates_status(client):
     client.configure_manual_outputs(8)
 
     assert sorted(client._status["outputs"]) == list(range(1, 9))
+
+
+@pytest.mark.asyncio
+async def test_query_unsealed_zones_uses_status_and_waits_for_status_updates(client):
+    client._status["zones"] = {}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock()
+
+    async def receive_status_updates(_delay):
+        client._status["zones"] = {
+            1: False,
+            2: True,
+            5: True,
+            9: False,
+        }
+
+    with patch(
+        "custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep",
+        side_effect=receive_status_updates,
+    ) as sleep:
+        result = await client.query_unsealed_zones()
+
+    client._send_command_safe.assert_awaited_once_with("STATUS")
+    sleep.assert_awaited_once_with(0.5)
+    assert result == [2, 5]
 
 
 def test_state_change_callback_is_registered(client):
