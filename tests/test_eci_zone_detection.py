@@ -446,6 +446,26 @@ class TestECiConfigurationManager:
         
         assert validated["max_zone"] == 16  # Should default to 16
 
+    def test_setting_user_preferences_invalidates_cache(self, config_manager):
+        """Test that changed preferences do not reuse an old configuration."""
+        config_manager.detection_cache = {"max_zone": 16}
+
+        config_manager.set_user_preferences(max_zones=32, areas=[1], auto_detect=False)
+
+        assert config_manager.detection_cache is None
+
+    async def test_cached_configuration_is_deep_copied(self, config_manager, mock_client):
+        """Test that callers cannot mutate nested cached configuration data."""
+        config_manager.detection_cache = {
+            "detected_zones": {1, 2},
+            "zones_in_areas": {1: {1, 2}},
+        }
+
+        result = await config_manager.get_panel_configuration(mock_client)
+        result["zones_in_areas"][1].add(3)
+
+        assert config_manager.detection_cache["zones_in_areas"][1] == {1, 2}
+
 
 class TestECiDetectionIntegration:
     """Test ECi detection integration scenarios."""
