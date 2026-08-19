@@ -1,6 +1,6 @@
 """Test the ECi zone detection functionality."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.arrowhead_alarm.eci_zone_detection import (
     ECiZoneManager,
@@ -75,6 +75,7 @@ class TestECiZoneManager:
         # Mock failed area query but successful status parsing
         mock_client._send_command.side_effect = [
             "",  # Empty response for area query
+            None,  # STATUS command completes while status data is inspected
         ]
         
         # Mock status data with zones
@@ -94,7 +95,10 @@ class TestECiZoneManager:
     async def test_detect_panel_configuration_error_fallback(self, zone_manager, mock_client):
         """Test error fallback configuration."""
         # Mock exception during detection
-        mock_client._send_command.side_effect = Exception("Communication error")
+        mock_client._send_command.side_effect = [
+            Exception("Communication error"),
+            None,
+        ]
         
         config = await zone_manager.detect_panel_configuration()
         
@@ -217,7 +221,7 @@ class TestECiZoneManager:
         
         expanders = zone_manager._detect_expanders(zones)
         
-        assert len(expanders) == 3  # Should detect 3 expanders
+        assert len(expanders) == 2  # Zones are present in expanders 1 and 2
         
         # Check first expander (zones 17-32)
         exp1 = next(e for e in expanders if e["name"] == "zone_expander_1")
@@ -277,6 +281,7 @@ class TestECiConfigurationManager:
             mock_manager.detect_panel_configuration = AsyncMock(return_value={
                 "detected_zones": set(range(1, 17)),
                 "active_areas": {1},
+                "zones_in_areas": {1: set(range(1, 17))},
                 "max_zone": 16,
                 "total_zones": 16,
                 "detection_method": "active_areas_query"
@@ -527,7 +532,10 @@ class TestECiDetectionIntegration:
         client = mock_client_with_responses
         
         # Mock area query failure but status parsing success
-        client._send_command.side_effect = Exception("Communication timeout")
+        client._send_command.side_effect = [
+            Exception("Communication timeout"),
+            None,
+        ]
         client._status = {
             "zones": {i: False for i in range(1, 9)},  # 8 zones from status
             "zone_alarms": {},
@@ -547,7 +555,7 @@ class TestECiDetectionIntegration:
         """Test detection with partial communication failure."""
         client = mock_client_with_responses
         
-        def mock_command_responses(command):
+        def mock_command_responses(command, **kwargs):
             if "P4076E1" in command:
                 return "P4076E1=1,2,3"  # Areas query succeeds
             elif "P4075E1" in command:
