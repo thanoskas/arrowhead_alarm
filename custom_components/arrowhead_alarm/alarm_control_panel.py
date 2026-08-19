@@ -11,6 +11,7 @@ from homeassistant.components.alarm_control_panel import (
     CodeFormat,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.event import async_track_time_interval
@@ -254,7 +255,7 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
         self._mode_4_active = firmware_info.get("mode_4_active", False)
         self._protocol_mode = firmware_info.get("protocol_mode", 4)
         self._firmware_version = firmware_info.get("version", "Unknown")
-        
+
         # Arming effects state
         self._arming_state = "idle"
         self._arming_start_time = None
@@ -272,6 +273,32 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             "sw_version": self._firmware_version,
             "configuration_url": f"http://{config_entry.data.get('host', 'unknown')}",
         }
+        self._sync_firmware_metadata()
+
+    @callback
+    def _sync_firmware_metadata(self) -> None:
+        """Keep the displayed firmware metadata in sync with the current coordinator data."""
+        if not self.coordinator.data:
+            return
+
+        data = self.coordinator.data
+        version = data.get("firmware_version") or self._firmware_info.get("version") or self._firmware_version
+        if version and version != "Unknown":
+            self._firmware_version = version
+            self._attr_device_info["sw_version"] = version
+            if self.hass is not None:
+                registry = dr.async_get(self.hass)
+                device = registry.async_get_device_by_identifier((DOMAIN, self._config_entry.entry_id), self._config_entry.entry_id)
+                if device is not None and device.sw_version != version:
+                    registry.async_update_device(device.id, sw_version=version)
+
+        protocol_mode = data.get("protocol_mode", self._firmware_info.get("protocol_mode", self._protocol_mode))
+        if protocol_mode is not None:
+            self._protocol_mode = protocol_mode
+
+        mode_4_active = data.get("mode_4_features_active", self._firmware_info.get("mode_4_active", self._mode_4_active))
+        if mode_4_active is not None:
+            self._mode_4_active = bool(mode_4_active)
 
     @property
     def alarm_state(self) -> AlarmControlPanelState:
@@ -605,6 +632,7 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        self._sync_firmware_metadata()
         if self.coordinator.data:
             # Check for any manual area armed state
             manual_areas = self._get_manual_areas()
@@ -644,7 +672,8 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
                     else:
                         self._update_arming_state("idle")
         
-        self.async_write_ha_state()
+        if self.hass is not None:
+            self.async_write_ha_state()
 
 
 class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
@@ -682,7 +711,7 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
         self._mode_4_active = firmware_info.get("mode_4_active", False)
         self._protocol_mode = firmware_info.get("protocol_mode", 4)
         self._firmware_version = firmware_info.get("version", "Unknown")
-        
+
         # Arming effects state for this area
         self._arming_state = "idle"
         self._arming_start_time = None
@@ -699,6 +728,32 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
             "model": f"{panel_config['name']} (MODE 4)",
             "sw_version": self._firmware_version,
         }
+        self._sync_firmware_metadata()
+
+    @callback
+    def _sync_firmware_metadata(self) -> None:
+        """Keep the displayed firmware metadata in sync with the current coordinator data."""
+        if not self.coordinator.data:
+            return
+
+        data = self.coordinator.data
+        version = data.get("firmware_version") or self._firmware_info.get("version") or self._firmware_version
+        if version and version != "Unknown":
+            self._firmware_version = version
+            self._attr_device_info["sw_version"] = version
+            if self.hass is not None:
+                registry = dr.async_get(self.hass)
+                device = registry.async_get_device_by_identifier((DOMAIN, self._config_entry.entry_id), self._config_entry.entry_id)
+                if device is not None and device.sw_version != version:
+                    registry.async_update_device(device.id, sw_version=version)
+
+        protocol_mode = data.get("protocol_mode", self._firmware_info.get("protocol_mode", self._protocol_mode))
+        if protocol_mode is not None:
+            self._protocol_mode = protocol_mode
+
+        mode_4_active = data.get("mode_4_features_active", self._firmware_info.get("mode_4_active", self._mode_4_active))
+        if mode_4_active is not None:
+            self._mode_4_active = bool(mode_4_active)
 
     @property
     def alarm_state(self) -> AlarmControlPanelState:
@@ -951,6 +1006,7 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        self._sync_firmware_metadata()
         if self.coordinator.data:
             area_armed_key = self._get_area_armed_key()
             area_armed = self.coordinator.data.get(area_armed_key, False)
@@ -973,4 +1029,5 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
                     else:
                         self._update_arming_state("idle")
         
-        self.async_write_ha_state()
+        if self.hass is not None:
+            self.async_write_ha_state()

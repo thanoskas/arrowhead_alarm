@@ -43,6 +43,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List
 from enum import Enum
 
+from .const import supports_mode_4
+
 _LOGGER = logging.getLogger(__name__)
 
 class ConnectionState(Enum):
@@ -221,10 +223,11 @@ class ArrowheadECiClient:
                 self._reconnect_attempts = 0
                 
                 self._keep_alive_task = asyncio.create_task(self._keep_alive())
-                
-                _LOGGER.info("Connection successful - MODE 4: %s, Single area: %s", 
+
+                _LOGGER.info("Connection successful - MODE 4: %s, Single area: %s",
                            self.mode_4_features_active, self.single_area_mode)
-                
+
+                await self.refresh_firmware_info()
                 await self._get_initial_status()
                 return True
             else:
@@ -1079,8 +1082,38 @@ class ArrowheadECiClient:
         self._status[key] = value
         self._status["last_update"] = datetime.now().isoformat()
 
+    async def refresh_firmware_info(self) -> Optional[str]:
+        """Query the panel firmware version and persist it without changing live protocol state."""
+        if not self.is_connected:
+            return self.firmware_version
+
+        try:
+            response = await self._send_command_safe("VERSION", expect_response=True, timeout=10.0)
+            if not response:
+                return self.firmware_version
+
+            version_patterns = [
+                r'Version\s*"?([^"\r\n]+)"?',
+                r'F/W\s+Ver\.\s*([^\r\n\s]+)',
+                r'ECi\s+F/W\s+Ver\.\s*([^\r\n\s]+)',
+            ]
+            for pattern in version_patterns:
+                match = re.search(pattern, response, re.IGNORECASE)
+                if match:
+                    firmware_version = match.group(1).strip()
+                    if firmware_version and firmware_version != "Unknown":
+                        self.firmware_version = firmware_version
+                        self.supports_mode_4 = supports_mode_4(firmware_version)
+                        self._update_status("firmware_version", firmware_version)
+                        self._update_status("supports_mode_4", self.supports_mode_4)
+                        return firmware_version
+        except Exception as err:
+            _LOGGER.debug("Error refreshing firmware info: %s", err)
+
+        return self.firmware_version
+
     async def get_status(self) -> Dict[str, Any]:
-        """Get current status."""
+        """Get current status without polling firmware on every refresh."""
         if self.is_connected:
             try:
                 await self._send_command_safe("STATUS")
