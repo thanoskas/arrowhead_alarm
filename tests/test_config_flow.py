@@ -77,7 +77,7 @@ async def test_connection_test_uses_eci_client(config_flow):
     with patch("asyncio.open_connection", return_value=(AsyncMock(), writer)), \
          patch("custom_components.arrowhead_alarm.config_flow.ArrowheadECiClient", return_value=client), \
          patch.object(config_flow, "_detect_firmware_fixed", new=AsyncMock(return_value={})), \
-         patch.object(config_flow, "_detect_zones_fixed", new=AsyncMock(return_value={})): 
+         patch.object(config_flow, "_detect_zones_fixed", new=AsyncMock(return_value={})):
         result = await config_flow._test_connection_fixed({
             "host": "192.168.1.100",
             "port": 9000,
