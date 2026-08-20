@@ -3,7 +3,11 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.arrowhead_alarm import async_reload_entry, async_unload_entry
+from custom_components.arrowhead_alarm import (
+    _resolve_firmware_info,
+    async_reload_entry,
+    async_unload_entry,
+)
 from custom_components.arrowhead_alarm.const import DOMAIN
 
 
@@ -50,3 +54,63 @@ def test_reload_entry_calls_current_setup_and_unload():
 
     unload.assert_awaited_once_with(hass, entry)
     setup.assert_awaited_once_with(hass, entry)
+
+
+def test_resolve_firmware_info_keeps_known_persisted_version_when_client_is_unknown():
+    entry = MagicMock()
+    entry.data = {
+        "firmware_version": "10.3.51",
+        "protocol_mode": 4,
+        "supports_mode_4": True,
+    }
+    client = MagicMock()
+    client.is_connected = False
+    client.firmware_version = "Unknown"
+    client.protocol_mode = "MODE_1"
+    client.mode_4_features_active = False
+    client.supports_mode_4 = False
+
+    result = _resolve_firmware_info(entry, client)
+
+    assert result["version"] == "10.3.51"
+    assert result["protocol_mode"] == 4
+    assert result["supports_mode_4"] is True
+
+
+def test_resolve_firmware_info_ignores_unknown_persisted_value_when_runtime_is_real():
+    entry = MagicMock()
+    entry.data = {"firmware_version": "Unknown", "protocol_mode": 1, "supports_mode_4": False}
+    client = MagicMock()
+    client.is_connected = True
+    client.firmware_version = "11.0.0"
+    client.protocol_mode = "MODE_4"
+    client.mode_4_features_active = True
+    client.supports_mode_4 = True
+
+    result = _resolve_firmware_info(entry, client)
+
+    assert result["version"] == "11.0.0"
+    assert result["protocol_mode"] == 4
+    assert result["mode_4_active"] is True
+    assert result["supports_mode_4"] is True
+
+
+def test_resolve_firmware_info_does_not_overwrite_live_protocol_state():
+    entry = MagicMock()
+    entry.data = {
+        "firmware_version": "10.3.51",
+        "protocol_mode": 1,
+        "supports_mode_4": False,
+    }
+    client = MagicMock()
+    client.is_connected = True
+    client.firmware_version = "10.3.51"
+    client.protocol_mode = "MODE_4"
+    client.supports_mode_4 = True
+    client.mode_4_features_active = True
+
+    result = _resolve_firmware_info(entry, client)
+
+    assert result["protocol_mode"] == 4
+    assert result["supports_mode_4"] is True
+    assert result["mode_4_active"] is True
