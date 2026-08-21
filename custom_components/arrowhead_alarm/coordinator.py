@@ -990,7 +990,7 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
             
             # Send command with timeout
             response = await asyncio.wait_for(
-                self._client._send_command(command),
+                self._client._send_command_safe(command, expect_response=True),
                 timeout=SERVICE_TIMEOUTS["custom_command"]
             )
             

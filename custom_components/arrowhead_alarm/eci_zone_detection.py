@@ -109,7 +109,7 @@ class ECiZoneManager:
             _LOGGER.info("Sending command: P4076E1?")
             
             # Send program location query for active areas
-            response = await self.client._send_command("P4076E1?", expect_response=True)
+            response = await self.client._send_command_safe("P4076E1?", expect_response=True)
             
             _LOGGER.info("Raw response from P4076E1?: %r", response)
             
@@ -151,7 +151,7 @@ class ECiZoneManager:
             _LOGGER.info("Sending command: %s", command)
             
             # Send program location query for zones in area
-            response = await self.client._send_command(command, expect_response=True)
+            response = await self.client._send_command_safe(command, expect_response=True)
             
             _LOGGER.info("Raw response from %s: %r", command, response)
             
@@ -193,7 +193,7 @@ class ECiZoneManager:
             
             # Send STATUS command and collect zone messages
             try:
-                await self.client._send_command("STATUS")
+                await self.client._send_command_safe("STATUS")
             except Exception as err:
                 _LOGGER.warning("STATUS query failed; using cached client status: %s", err)
             

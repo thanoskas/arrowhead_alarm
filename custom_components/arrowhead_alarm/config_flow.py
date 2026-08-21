@@ -342,7 +342,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             # Get firmware version
             version_response = await asyncio.wait_for(
-                client._send_command("VERSION", expect_response=True),
+                client._send_command_safe("VERSION", expect_response=True),
                 timeout=10.0
             )
             
@@ -416,7 +416,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             # Check current mode first
             mode_response = await asyncio.wait_for(
-                client._send_command("mode ?", expect_response=True),
+                client._send_command_safe("mode ?", expect_response=True),
                 timeout=8.0
             )
             
@@ -427,7 +427,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             
             # Activate MODE 4 (your panel responds to "mode ?" with "OK MODE 4")
             mode_response = await asyncio.wait_for(
-                client._send_command("MODE 4", expect_response=True),
+                client._send_command_safe("MODE 4", expect_response=True),
                 timeout=8.0
             )
             
@@ -635,7 +635,7 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             _LOGGER.info("Attempting enhanced status detection...")
             
-            await client._send_command("STATUS")
+            await client._send_command_safe("STATUS")
             await asyncio.sleep(2)
             
             detected_zones = set()

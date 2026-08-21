@@ -15,7 +15,7 @@ class TestECiZoneManager:
     def mock_client(self):
         """Create a mock ECi client."""
         client = MagicMock()
-        client._send_command = AsyncMock()
+        client._send_command_safe = AsyncMock()
         client._status = {
             "zones": {},
             "zone_alarms": {},
@@ -32,7 +32,7 @@ class TestECiZoneManager:
     async def test_detect_panel_configuration_success(self, zone_manager, mock_client):
         """Test successful panel configuration detection."""
         # Mock active areas query response
-        mock_client._send_command.side_effect = [
+        mock_client._send_command_safe.side_effect = [
             "P4076E1=1,2",  # Active areas response
             "P4075E1=1,2,3,4",  # Zones in area 1
             "P4075E2=5,6,7,8",  # Zones in area 2
@@ -48,7 +48,7 @@ class TestECiZoneManager:
 
     async def test_detect_panel_configuration_single_area(self, zone_manager, mock_client):
         """Test detection with single area."""
-        mock_client._send_command.side_effect = [
+        mock_client._send_command_safe.side_effect = [
             "P4076E1=1",  # Single active area
             "P4075E1=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16",  # All zones in area 1
         ]
@@ -61,7 +61,7 @@ class TestECiZoneManager:
 
     async def test_detect_panel_configuration_no_areas(self, zone_manager, mock_client):
         """Test detection with no configured areas."""
-        mock_client._send_command.side_effect = [
+        mock_client._send_command_safe.side_effect = [
             "P4076E1=0",  # No areas configured
         ]
         
@@ -73,7 +73,7 @@ class TestECiZoneManager:
     async def test_detect_panel_configuration_fallback_to_status(self, zone_manager, mock_client):
         """Test fallback to status parsing when area query fails."""
         # Mock failed area query but successful status parsing
-        mock_client._send_command.side_effect = [
+        mock_client._send_command_safe.side_effect = [
             "",  # Empty response for area query
             None,  # STATUS command completes while status data is inspected
         ]
@@ -95,7 +95,7 @@ class TestECiZoneManager:
     async def test_detect_panel_configuration_error_fallback(self, zone_manager, mock_client):
         """Test error fallback configuration."""
         # Mock exception during detection
-        mock_client._send_command.side_effect = [
+        mock_client._send_command_safe.side_effect = [
             Exception("Communication error"),
             None,
         ]
@@ -109,7 +109,7 @@ class TestECiZoneManager:
 
     async def test_query_active_areas_success(self, zone_manager, mock_client):
         """Test successful active areas query."""
-        mock_client._send_command.return_value = "P4076E1=1,2,3"
+        mock_client._send_command_safe.return_value = "P4076E1=1,2,3"
         
         result = await zone_manager._query_active_areas()
         
@@ -118,7 +118,7 @@ class TestECiZoneManager:
 
     async def test_query_active_areas_no_areas(self, zone_manager, mock_client):
         """Test active areas query with no areas."""
-        mock_client._send_command.return_value = "P4076E1=0"
+        mock_client._send_command_safe.return_value = "P4076E1=0"
         
         result = await zone_manager._query_active_areas()
         
@@ -127,7 +127,7 @@ class TestECiZoneManager:
 
     async def test_query_active_areas_failure(self, zone_manager, mock_client):
         """Test active areas query failure."""
-        mock_client._send_command.side_effect = Exception("Query failed")
+        mock_client._send_command_safe.side_effect = Exception("Query failed")
         
         result = await zone_manager._query_active_areas()
         
@@ -136,7 +136,7 @@ class TestECiZoneManager:
 
     async def test_query_zones_in_area_success(self, zone_manager, mock_client):
         """Test successful zones in area query."""
-        mock_client._send_command.return_value = "P4075E1=1,2,3,4,5"
+        mock_client._send_command_safe.return_value = "P4075E1=1,2,3,4,5"
         
         result = await zone_manager._query_zones_in_area(1)
         
@@ -145,7 +145,7 @@ class TestECiZoneManager:
 
     async def test_query_zones_in_area_no_zones(self, zone_manager, mock_client):
         """Test zones in area query with no zones."""
-        mock_client._send_command.return_value = "P4075E1=0"
+        mock_client._send_command_safe.return_value = "P4075E1=0"
         
         result = await zone_manager._query_zones_in_area(1)
         
@@ -154,7 +154,7 @@ class TestECiZoneManager:
 
     async def test_query_zones_in_area_failure(self, zone_manager, mock_client):
         """Test zones in area query failure."""
-        mock_client._send_command.side_effect = Exception("Query failed")
+        mock_client._send_command_safe.side_effect = Exception("Query failed")
         
         result = await zone_manager._query_zones_in_area(1)
         
@@ -474,7 +474,7 @@ class TestECiDetectionIntegration:
     def mock_client_with_responses(self):
         """Create a mock client with realistic responses."""
         client = MagicMock()
-        client._send_command = AsyncMock()
+        client._send_command_safe = AsyncMock()
         client._status = {
             "zones": {},
             "zone_alarms": {},
@@ -488,7 +488,7 @@ class TestECiDetectionIntegration:
         client = mock_client_with_responses
         
         # Mock responses for small system
-        client._send_command.side_effect = [
+        client._send_command_safe.side_effect = [
             "P4076E1=1",  # Single area
             "P4075E1=1,2,3,4,5,6,7,8",  # 8 zones in area 1
         ]
@@ -507,7 +507,7 @@ class TestECiDetectionIntegration:
         client = mock_client_with_responses
         
         # Mock responses for medium system
-        client._send_command.side_effect = [
+        client._send_command_safe.side_effect = [
             "P4076E1=1,2",  # Two areas
             "P4075E1=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16",  # Area 1: main panel
             "P4075E2=17,18,19,20,21,22,23,24",  # Area 2: first expander
@@ -531,7 +531,7 @@ class TestECiDetectionIntegration:
         client = mock_client_with_responses
         
         # Mock responses for large system
-        client._send_command.side_effect = [
+        client._send_command_safe.side_effect = [
             "P4076E1=1,2,3,4",  # Four areas
             "P4075E1=1,2,3,4,5,6,7,8",  # Area 1: partial main panel
             "P4075E2=9,10,11,12,13,14,15,16",  # Area 2: rest of main panel
@@ -552,7 +552,7 @@ class TestECiDetectionIntegration:
         client = mock_client_with_responses
         
         # Mock area query failure but status parsing success
-        client._send_command.side_effect = [
+        client._send_command_safe.side_effect = [
             Exception("Communication timeout"),
             None,
         ]
@@ -587,7 +587,7 @@ class TestECiDetectionIntegration:
             else:
                 return ""
         
-        client._send_command.side_effect = mock_command_responses
+        client._send_command_safe.side_effect = mock_command_responses
         
         zone_manager = ECiZoneManager(client)
         config = await zone_manager.detect_panel_configuration()
@@ -606,7 +606,7 @@ class TestECiDetectionIntegration:
         client = mock_client_with_responses
         
         # Mock detection of large system
-        client._send_command.side_effect = [
+        client._send_command_safe.side_effect = [
             "P4076E1=1,2",
             "P4075E1=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16",
             "P4075E2=17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32",
@@ -629,7 +629,7 @@ class TestECiDetectionIntegration:
     async def test_configuration_caching(self, mock_client_with_responses):
         """Test that configuration manager caches results."""
         client = mock_client_with_responses
-        client._send_command.side_effect = [
+        client._send_command_safe.side_effect = [
             "P4076E1=1",
             "P4075E1=1,2,3,4",
         ]
