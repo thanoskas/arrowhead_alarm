@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [2.2.5] - 2026-08-21
+
+### Fixed
+
+- **"Ready to arm" sensor no longer shows "Unsafe"** (#8) - the sensor had a
+  SAFETY device class, which Home Assistant renders as Safe/Unsafe. It now
+  reports a plain On/Off. If the old wording sticks around, restart Home
+  Assistant once so the entity registry picks up the change.
+- **Zone auto-detection during setup now actually works** - the register
+  queries (P4075/P4076), firmware VERSION detection and the
+  `send_custom_command` service all called a method that no longer existed
+  and silently did nothing; they now reach the panel. Zone queries also
+  handle the panel's real reply pattern (an `OK` acknowledgement followed by
+  the data line, with unsolicited status events in between) and no longer
+  invent zones 1-9 when the panel returns no data. (#9, #11 - thanks @ZeeBOB)
+- **Firmware version no longer flips to "Unknown"** after reconnects or
+  restarts - it is refreshed once per connection, kept when the panel is
+  temporarily unreachable, and synced to the device registry. (#10 - thanks
+  @ZeeBOB)
+- **Unsealed-zone queries** use `STATUS` instead of the unsupported
+  standalone `?` command. (#11)
+- **Compatibility with Home Assistant older than 2026.8** - the firmware
+  sync used a device-registry API that only exists in HA 2026.8+; it now
+  uses the long-standing equivalent.
+
+### Internal
+
+- Test suite repaired and expanded (0 collectable tests before, 78 passing
+  now) and aligned with the ECi-only integration. (#9 - thanks @ZeeBOB)
+
 ## [2.2.4] - 2026-08-13
 
 ### Added
