@@ -34,7 +34,16 @@
 
 ---
 
-## 🎉 What's New in Version 2.2.4 / 2.2.3
+## 🎉 What's New in Version 2.2.5
+
+- ✅ **"Ready to arm" sensor fixed** - no longer shows "Unsafe" when the panel is ready; it now reports a plain On/Off (#8). Restart Home Assistant once after updating if the old wording sticks.
+- ✅ **Zone auto-detection works** - the P4075/P4076 register queries now actually reach the panel and understand its `OK` + data reply pattern (#9, #11)
+- ✅ **Firmware version stays put** - no more flipping to "Unknown" after reconnects; the version is refreshed per connection and synced to the device registry (#10)
+- ✅ **Test suite rebuilt** - 78 passing tests, validated against real ECi hardware
+
+Huge thanks to [@ZeeBOB](https://github.com/ZeeBOB) for three contributed pull requests and real-panel testing in this release! 💚
+
+## What's New in Version 2.2.4 / 2.2.3
 
 - ✅ **Small panels supported** - setups with fewer than 8 zones no longer fail with "Invalid max_zones" (#5)
 - ✅ **Reliable commands** - panel events arriving while a command waited for its reply are no longer mistaken for the response (#6)
@@ -245,13 +254,13 @@ This integration provides complete Home Assistant support for **Arrowhead ECi Se
 
 1. **Download Files**:
    ```bash
-   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.2.4.zip
-   unzip v2.2.4.zip
+   wget https://github.com/thanoskas/arrowhead_alarm/archive/refs/tags/v2.2.5.zip
+   unzip v2.2.5.zip
    ```
 
 2. **Copy Integration**:
    ```bash
-   cp -r arrowhead_alarm-2.2.4/custom_components/arrowhead_alarm /config/custom_components/
+   cp -r arrowhead_alarm-2.2.5/custom_components/arrowhead_alarm /config/custom_components/
    ```
 
 3. **Restart Home Assistant** and add the integration through the UI.
