@@ -41,7 +41,7 @@ def test_alarm_panel_reports_disarmed(alarm_panel, mock_coordinator):
 
 def test_alarm_entity_refreshes_firmware_version_and_device_registry():
     registry = MagicMock()
-    registry.async_get_device_by_identifier.return_value = MagicMock(id="dev-123", sw_version="10.3.51")
+    registry.async_get_device.return_value = MagicMock(id="dev-123", sw_version="10.3.51")
 
     coordinator = MagicMock()
     coordinator.data = {
@@ -77,7 +77,7 @@ def test_alarm_entity_refreshes_firmware_version_and_device_registry():
     assert entity._firmware_version == "11.0.0"
     assert entity.extra_state_attributes["firmware_version"] == "11.0.0"
     registry.async_update_device.assert_called_once_with("dev-123", sw_version="11.0.0")
-    registry.async_get_device_by_identifier.assert_called_with((DOMAIN, "entry-1"), "entry-1")
+    registry.async_get_device.assert_called_with(identifiers={(DOMAIN, "entry-1")})
 
 
 @pytest.mark.asyncio

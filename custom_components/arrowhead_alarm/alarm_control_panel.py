@@ -288,7 +288,9 @@ class ArrowheadECiAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEntity):
             self._attr_device_info["sw_version"] = version
             if self.hass is not None:
                 registry = dr.async_get(self.hass)
-                device = registry.async_get_device_by_identifier((DOMAIN, self._config_entry.entry_id), self._config_entry.entry_id)
+                # async_get_device (not async_get_device_by_identifier) so the
+                # integration keeps working on HA older than 2026.8
+                device = registry.async_get_device(identifiers={(DOMAIN, self._config_entry.entry_id)})
                 if device is not None and device.sw_version != version:
                     registry.async_update_device(device.id, sw_version=version)
 
@@ -743,7 +745,9 @@ class ArrowheadECiAreaAlarmControlPanel(CoordinatorEntity, AlarmControlPanelEnti
             self._attr_device_info["sw_version"] = version
             if self.hass is not None:
                 registry = dr.async_get(self.hass)
-                device = registry.async_get_device_by_identifier((DOMAIN, self._config_entry.entry_id), self._config_entry.entry_id)
+                # async_get_device (not async_get_device_by_identifier) so the
+                # integration keeps working on HA older than 2026.8
+                device = registry.async_get_device(identifiers={(DOMAIN, self._config_entry.entry_id)})
                 if device is not None and device.sw_version != version:
                     registry.async_update_device(device.id, sw_version=version)
 
