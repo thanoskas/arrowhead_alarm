@@ -1,6 +1,6 @@
 """Tests for representative ECi platform entities."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -9,7 +9,7 @@ from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 
 from custom_components.arrowhead_alarm.alarm_control_panel import ArrowheadECiAlarmControlPanel
 from custom_components.arrowhead_alarm.binary_sensor import ArrowheadZoneSensor
-from custom_components.arrowhead_alarm.const import PANEL_CONFIG
+from custom_components.arrowhead_alarm.const import DOMAIN, PANEL_CONFIG
 
 
 @pytest.fixture
@@ -37,6 +37,47 @@ def test_alarm_panel_reports_disarmed(alarm_panel, mock_coordinator):
     mock_coordinator.data = {"armed": False, "alarm": False, "arming": False}
 
     assert alarm_panel.alarm_state == AlarmControlPanelState.DISARMED
+
+
+def test_alarm_entity_refreshes_firmware_version_and_device_registry():
+    registry = MagicMock()
+    registry.async_get_device_by_identifier.return_value = MagicMock(id="dev-123", sw_version="10.3.51")
+
+    coordinator = MagicMock()
+    coordinator.data = {
+        "firmware_version": "10.3.51",
+        "protocol_mode": 4,
+        "supports_mode_4": True,
+        "mode_4_features_active": True,
+    }
+    coordinator.last_update_success = True
+    entry = MagicMock()
+    entry.entry_id = "entry-1"
+    entry.data = {"host": "192.168.1.50"}
+
+    entity = ArrowheadECiAlarmControlPanel(
+        coordinator,
+        entry,
+        {"name": "ECi"},
+        {"version": "Unknown", "protocol_mode": 4, "mode_4_active": False, "supports_mode_4": True},
+    )
+    entity.hass = MagicMock()
+    with patch("homeassistant.helpers.device_registry.async_get", return_value=registry):
+        entity._sync_firmware_metadata()
+        assert entity.extra_state_attributes["firmware_version"] == "10.3.51"
+
+        coordinator.data = {
+            "firmware_version": "11.0.0",
+            "protocol_mode": 4,
+            "supports_mode_4": True,
+            "mode_4_features_active": True,
+        }
+        entity._sync_firmware_metadata()
+
+    assert entity._firmware_version == "11.0.0"
+    assert entity.extra_state_attributes["firmware_version"] == "11.0.0"
+    registry.async_update_device.assert_called_once_with("dev-123", sw_version="11.0.0")
+    registry.async_get_device_by_identifier.assert_called_with((DOMAIN, "entry-1"), "entry-1")
 
 
 @pytest.mark.asyncio

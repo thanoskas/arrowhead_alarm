@@ -32,6 +32,53 @@ from .coordinator import ArrowheadECiDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _resolve_firmware_info(entry: ConfigEntry, client: ArrowheadECiClient) -> Dict[str, Any]:
+    """Resolve firmware metadata while keeping live runtime protocol state authoritative."""
+    persisted_version = entry.data.get("firmware_version")
+    client_version = getattr(client, "firmware_version", "Unknown")
+    client_connected = bool(getattr(client, "is_connected", False))
+
+    if client_connected and client_version and client_version != "Unknown":
+        version = client_version
+    elif persisted_version and persisted_version != "Unknown":
+        version = persisted_version
+    else:
+        version = client_version or persisted_version or "Unknown"
+
+    raw_client_protocol_mode = getattr(client, "protocol_mode", None)
+    if hasattr(raw_client_protocol_mode, "value"):
+        raw_client_protocol_mode = raw_client_protocol_mode.value
+    if isinstance(raw_client_protocol_mode, str):
+        raw_client_protocol_mode = 4 if "4" in raw_client_protocol_mode.upper() else 1
+
+    if client_connected and raw_client_protocol_mode is not None:
+        protocol_mode = raw_client_protocol_mode
+    else:
+        protocol_mode = entry.data.get("protocol_mode", raw_client_protocol_mode if raw_client_protocol_mode is not None else 4)
+
+    raw_client_supports_mode_4 = getattr(client, "supports_mode_4", None)
+    if client_connected and raw_client_supports_mode_4 is not None:
+        supports_mode_4 = raw_client_supports_mode_4
+    else:
+        supports_mode_4 = entry.data.get("supports_mode_4", raw_client_supports_mode_4)
+    if supports_mode_4 is None:
+        supports_mode_4 = False
+
+    raw_mode_4_active = getattr(client, "mode_4_features_active", None)
+    if client_connected and raw_mode_4_active is not None:
+        mode_4_active = raw_mode_4_active
+    else:
+        mode_4_active = bool(supports_mode_4) if protocol_mode == 4 else False
+
+    return {
+        "version": version,
+        "protocol_mode": int(protocol_mode) if isinstance(protocol_mode, int) else protocol_mode,
+        "mode_4_active": bool(mode_4_active),
+        "supports_mode_4": bool(supports_mode_4),
+    }
+
+
 # Platforms supported by this integration
 PLATFORMS: list[Platform] = [
     Platform.ALARM_CONTROL_PANEL, 
@@ -199,18 +246,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Store integration data
     _LOGGER.info("=== STORING INTEGRATION DATA ===")
+    firmware_info = _resolve_firmware_info(entry, client)
+    if firmware_info["version"] and firmware_info["version"] != "Unknown":
+        client.firmware_version = firmware_info["version"]
+        if hasattr(client, "_status"):
+            client._status["firmware_version"] = firmware_info["version"]
+    if coordinator.data:
+        coordinator.data["firmware_version"] = client.firmware_version or firmware_info["version"]
+        coordinator.data["protocol_mode"] = getattr(client, "protocol_mode", firmware_info["protocol_mode"])
+        coordinator.data["supports_mode_4"] = getattr(client, "supports_mode_4", firmware_info["supports_mode_4"])
+        coordinator.data["mode_4_features_active"] = getattr(client, "mode_4_features_active", firmware_info["mode_4_active"])
+
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
         "client": client,
         "panel_config": PANEL_CONFIG,
         "configuration": config,
-        "firmware_info": {
-            "version": client.firmware_version,
-            "protocol_mode": client.protocol_mode.value if hasattr(client.protocol_mode, 'value') else client.protocol_mode,
-            "mode_4_active": client.mode_4_features_active,
-            "supports_mode_4": client.supports_mode_4,
-        }
+        "firmware_info": firmware_info,
     }
     
     # Set up platforms
