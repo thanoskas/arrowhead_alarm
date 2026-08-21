@@ -279,10 +279,10 @@ class ArrowheadSystemSensor(CoordinatorEntity, BinarySensorEntity):
         self._attr_unique_id = f"{config_entry.entry_id}_system_{status_key}"
         
         # Set device class based on status type
+        # NOTE: ready_to_arm intentionally has no device class - SAFETY would
+        # make HA show "Unsafe" when the panel is ready to arm (issue #8)
         if status_key in ["mains_ok", "battery_ok", "line_ok", "dialer_ok", "fuse_ok", "receiver_ok"]:
             self._attr_device_class = BinarySensorDeviceClass.PROBLEM
-        elif status_key in ["ready_to_arm"]:
-            self._attr_device_class = BinarySensorDeviceClass.SAFETY
         elif status_key in ["tamper_alarm", "rf_battery_low", "sensor_watch_alarm"]:
             self._attr_device_class = BinarySensorDeviceClass.PROBLEM
         else:
