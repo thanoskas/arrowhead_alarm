@@ -469,52 +469,53 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             for area in configured_areas:
                 try:
                     _LOGGER.info("Querying zones for area %d", area)
-                    
+
                     await self._clear_queue_fixed(client)
-                    
-                    # Send P4075Ex? command
+
                     command = f"P4075E{area}?"
                     await client._send_raw_safe(f"{command}\n")
-                    
-                    # Get potentially multiple responses
+
                     responses = []
-                    
-                    # Try to get up to 3 responses (OK, data, maybe more)
-                    for i in range(3):
+                    matched_response = False
+
+                    for i in range(4):
                         try:
                             response = await asyncio.wait_for(
                                 client._get_response_safe(),
                                 timeout=5.0
                             )
-                            if response:
-                                responses.append(response)
-                                _LOGGER.info("Area %d response %d: %r", area, i+1, response)
-                                
-                                # If we got the data response, we can break early
-                                if f"P4075E{area}=" in response:
-                                    break
                         except asyncio.TimeoutError:
                             break
-                    
-                    # Process responses to find zone data
-                    for response in responses:
-                        if response and f"P4075E{area}=" in response:
-                            zones_part = response.split("=")[1].strip()
+
+                        if not response:
+                            continue
+
+                        response = response.strip()
+                        if response == "OK" or self._is_event_message(response):
+                            _LOGGER.debug("Ignoring non-zone response for area %d: %r", area, response)
+                            continue
+
+                        responses.append(response)
+                        _LOGGER.info("Area %d response %d: %r", area, i + 1, response)
+
+                        if f"P4075E{area}=" in response:
+                            zones_part = response.split("=", 1)[1].strip()
                             _LOGGER.info("Area %d zones data: %s", area, zones_part)
-                            
+
                             if zones_part and zones_part != "0":
                                 area_zones = self._parse_zones_fixed(zones_part)
                                 if area_zones:
                                     all_zones.update(area_zones)
                                     successful_areas += 1
+                                    matched_response = True
                                     _LOGGER.info("✅ Area %d: %s", area, sorted(area_zones))
                             break
-                        else:
-                            _LOGGER.warning("❌ No zone data found for area %d in responses: %s", area, responses)
-                    
-                    # Wait between area queries
+
+                    if not matched_response and responses:
+                        _LOGGER.warning("❌ No zone data found for area %d in responses: %s", area, responses)
+
                     await asyncio.sleep(1.5)
-                    
+
                 except Exception as err:
                     _LOGGER.error("Error querying area %d: %s", area, err)
             
@@ -539,6 +540,24 @@ class ArrowheadAlarmConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except Exception as err:
             _LOGGER.error("Programming queries failed: %s", err)
             return None
+
+    def _is_event_message(self, message: str) -> bool:
+        """Ignore unsolicited status events while waiting for the expected data reply."""
+        if not message:
+            return False
+
+        event_prefixes = ("ZBYR", "ZSFR", "ZBLR", "ZEDS", "ZTR", "ZBY", "ZSF", "ZBL", "ZT", "ZO", "ZC", "ZA", "ZR")
+        for prefix in event_prefixes:
+            if message.startswith(prefix) and message[len(prefix):].isdigit():
+                return True
+
+        if message[:2] in ("OO", "OR") and message[2:].isdigit():
+            return True
+
+        if message[:1] in ("A", "D", "S") and message[1:].split("-", 1)[0].isdigit():
+            return True
+
+        return False
 
     async def _get_areas_fixed(self, client) -> List[int]:
         """FIXED: Get areas handling two-response pattern from your panel."""

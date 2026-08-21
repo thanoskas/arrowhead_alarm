@@ -1,6 +1,7 @@
 """Tests for the ECi client."""
 
-from unittest.mock import AsyncMock, MagicMock
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -73,10 +74,120 @@ async def test_status_returns_copy(client):
     assert status is not client._status
 
 
+@pytest.mark.asyncio
+async def test_populate_zones_from_panel_handles_ok_before_zone_data(client, monkeypatch):
+    client.configured_areas = [1]
+    client._status["zones"] = {}
+    client._status["zone_alarms"] = {}
+    client._status["zone_troubles"] = {}
+    client._status["zone_bypassed"] = {}
+    monkeypatch.setattr(client, "_clear_response_queue", AsyncMock())
+    monkeypatch.setattr(client, "_send_raw_safe", AsyncMock())
+    monkeypatch.setattr(client, "_send_command_safe", AsyncMock(return_value="OK"))
+    responses = iter(["OK", "P4075E1=1,2,3"])
+    monkeypatch.setattr(client, "_get_response_safe", AsyncMock(side_effect=lambda: next(responses)))
+
+    await client._populate_zones_from_panel()
+
+    assert set(client._status["zones"].keys()) == {1, 2, 3}
+
+
+@pytest.mark.asyncio
+async def test_populate_zones_from_panel_handles_immediate_zone_response(client, monkeypatch):
+    client.configured_areas = [1]
+    client._status["zones"] = {}
+    client._status["zone_alarms"] = {}
+    client._status["zone_troubles"] = {}
+    client._status["zone_bypassed"] = {}
+    monkeypatch.setattr(client, "_clear_response_queue", AsyncMock())
+    monkeypatch.setattr(client, "_send_raw_safe", AsyncMock())
+    monkeypatch.setattr(client, "_get_response_safe", AsyncMock(return_value="P4075E1=1,2,3"))
+
+    await client._populate_zones_from_panel()
+
+    assert set(client._status["zones"].keys()) == {1, 2, 3}
+
+
+@pytest.mark.asyncio
+async def test_query_zones_for_area_ignores_ok_and_event_messages(client, monkeypatch):
+    monkeypatch.setattr(client, "_clear_response_queue", AsyncMock())
+    monkeypatch.setattr(client, "_send_raw_safe", AsyncMock())
+    monkeypatch.setattr(
+        client,
+        "_get_response_safe",
+        AsyncMock(side_effect=["OK", "ZR1", "P4075E1=1,2,3"]),
+    )
+
+    result = await client._query_zones_for_area(1)
+
+    assert result == {1, 2, 3}
+
+
+@pytest.mark.asyncio
+async def test_populate_zones_from_panel_does_not_fake_zones_when_no_data_arrives(client, monkeypatch):
+    client.configured_areas = [1]
+    client._status["zones"] = {}
+    client._status["zone_alarms"] = {}
+    client._status["zone_troubles"] = {}
+    client._status["zone_bypassed"] = {}
+    monkeypatch.setattr(client, "_clear_response_queue", AsyncMock())
+    monkeypatch.setattr(client, "_send_raw_safe", AsyncMock())
+    monkeypatch.setattr(client, "_get_response_safe", AsyncMock(side_effect=["OK", asyncio.TimeoutError()]))
+
+    await client._populate_zones_from_panel()
+
+    assert client._status["zones"] == {}
+
+
+@pytest.mark.asyncio
+async def test_populate_zones_from_panel_handles_multiple_areas(client, monkeypatch):
+    client.configured_areas = [1, 2]
+    client._status["zones"] = {}
+    client._status["zone_alarms"] = {}
+    client._status["zone_troubles"] = {}
+    client._status["zone_bypassed"] = {}
+    monkeypatch.setattr(client, "_clear_response_queue", AsyncMock())
+    monkeypatch.setattr(client, "_send_raw_safe", AsyncMock())
+    monkeypatch.setattr(
+        client,
+        "_get_response_safe",
+        AsyncMock(side_effect=["OK", "P4075E1=1,2,3", "OK", "P4075E2=4,5,6"]),
+    )
+
+    await client._populate_zones_from_panel()
+
+    assert set(client._status["zones"].keys()) == {1, 2, 3, 4, 5, 6}
+
+
 def test_configure_manual_outputs_updates_status(client):
     client.configure_manual_outputs(8)
 
     assert sorted(client._status["outputs"]) == list(range(1, 9))
+
+
+@pytest.mark.asyncio
+async def test_query_unsealed_zones_uses_status_and_waits_for_status_updates(client):
+    client._status["zones"] = {}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock()
+
+    async def receive_status_updates(_delay):
+        client._status["zones"] = {
+            1: False,
+            2: True,
+            5: True,
+            9: False,
+        }
+
+    with patch(
+        "custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep",
+        side_effect=receive_status_updates,
+    ) as sleep:
+        result = await client.query_unsealed_zones()
+
+    client._send_command_safe.assert_awaited_once_with("STATUS")
+    sleep.assert_awaited_once_with(0.5)
+    assert result == [2, 5]
 
 
 def test_state_change_callback_is_registered(client):

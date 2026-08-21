@@ -332,41 +332,69 @@ class ArrowheadECiClient:
             _LOGGER.warning("Error getting initial status: %s", err)
 
     async def _populate_zones_from_panel(self) -> None:
-        """Populate zones from panel configuration."""
+        """Populate zones from panel configuration without inventing defaults."""
         try:
-            areas = self.configured_areas if self.configured_areas else [1, 2, 3]
-            
+            areas = self.configured_areas if self.configured_areas else [1]
             all_zones = set()
-            
+
             for area in areas:
                 try:
-                    await self._clear_response_queue()
-                    command = f"P4075E{area}?"
-                    response = await self._send_command_safe(command, expect_response=True, timeout=10.0)
-                    
-                    if response and f"P4075E{area}=" in response:
-                        zones_part = response.split("=")[1].strip()
-                        if zones_part and zones_part != "0":
-                            area_zones = self._parse_zone_list(zones_part)
-                            all_zones.update(area_zones)
-                    
-                    await asyncio.sleep(1)
+                    area_zones = await self._query_zones_for_area(area)
+                    if area_zones:
+                        all_zones.update(area_zones)
                 except Exception as err:
                     _LOGGER.warning("Error getting zones for area %d: %s", area, err)
-            
+
             if not all_zones:
-                all_zones = {1, 2, 3, 4, 5, 6, 7, 8, 9}
-            
+                _LOGGER.warning(
+                    "No valid zone data received for configured areas %s; leaving startup zones unset",
+                    areas,
+                )
+                return
+
             for zone_id in all_zones:
                 self._status["zones"][zone_id] = False
                 self._status["zone_alarms"][zone_id] = False
                 self._status["zone_troubles"][zone_id] = False
                 self._status["zone_bypassed"][zone_id] = False
-            
+
             _LOGGER.info("Populated %d zones", len(all_zones))
-            
+
         except Exception as err:
             _LOGGER.error("Error populating zones: %s", err)
+
+    async def _query_zones_for_area(self, area: int) -> set:
+        """Query a single area and ignore OK responses until matching zone data arrives."""
+        await self._clear_response_queue()
+        await self._send_raw_safe(f"P4075E{area}?\n")
+
+        responses: List[str] = []
+        for _ in range(4):
+            try:
+                response = await asyncio.wait_for(self._get_response_safe(), timeout=5.0)
+            except asyncio.TimeoutError:
+                break
+
+            if not response:
+                break
+
+            response = response.strip()
+            if not response or response == "OK" or self._is_event_message(response):
+                continue
+
+            responses.append(response)
+            if f"P4075E{area}=" in response:
+                zones_part = response.split("=", 1)[1].strip()
+                if zones_part and zones_part != "0":
+                    return self._parse_zone_list(zones_part)
+                return set()
+
+        if responses:
+            _LOGGER.warning("No zone data found for area %d in responses: %s", area, responses)
+        else:
+            _LOGGER.warning("No zone response received for area %d after query %s", area, f"P4075E{area}?")
+
+        return set()
 
     def _parse_zone_list(self, zones_str: str) -> set:
         """Parse comma-separated zone list."""
@@ -921,44 +949,37 @@ class ArrowheadECiClient:
     async def query_unsealed_zones(self) -> List[int]:
         """
         Query panel for all currently unsealed (open) zones.
-        
-        Sends '?' command to panel and parses response for zone status.
-        Useful for initializing zone states on startup or after reconnection.
-        
+
+        ECi panels require "STATUS" rather than a standalone "?". The panel
+        then emits asynchronous zone updates (for example ZO001, ZC003) which
+        are processed into self._status["zones"] by the reader before the
+        method returns.
+
         Returns:
             List of zone numbers that are currently open/unsealed
         """
         try:
             await self._clear_response_queue()
-            
-            # Send query command for unsealed zones
-            response = await self._send_command_safe("?", expect_response=True, timeout=5.0)
-            
-            if not response:
-                _LOGGER.debug("No response from unsealed zones query")
+
+            await self._send_command_safe("STATUS")
+            await asyncio.sleep(0.5)
+
+            zones = self._status.get("zones", {})
+            if not zones:
+                _LOGGER.debug("No zone state available yet from status updates")
                 return []
-            
-            # Parse response: Expected format "ZO001 ZO005 ZO012" 
-            unsealed_zones = []
-            parts = response.split()
-            
-            for part in parts:
-                if part.startswith("ZO"):
-                    try:
-                        zone_num = int(part[2:])
-                        if 1 <= zone_num <= 248:  # Valid ECi zone range
-                            unsealed_zones.append(zone_num)
-                    except ValueError:
-                        _LOGGER.debug("Could not parse zone number from: %s", part)
-                        continue
-            
+
+            unsealed_zones = sorted(
+                zone_num for zone_num, is_open in zones.items() if bool(is_open)
+            )
+
             if unsealed_zones:
-                _LOGGER.info("Unsealed zones query found: %s", unsealed_zones)
+                _LOGGER.info("Unsealed zones from status: %s", unsealed_zones)
             else:
                 _LOGGER.debug("No unsealed zones found (all zones sealed)")
-            
+
             return unsealed_zones
-            
+
         except Exception as err:
             _LOGGER.error("Error querying unsealed zones: %s", err)
             return []
