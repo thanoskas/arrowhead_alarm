@@ -10,7 +10,7 @@ tests/
 ├── conftest.py                    # Pytest fixtures and configuration
 ├── test_config_flow.py            # Configuration flow tests
 ├── test_coordinator.py            # Data coordinator tests  
-├── test_client.py                 # ArrowheadClient tests
+├── test_client.py                 # ArrowheadECiClient tests
 ├── test_platforms.py              # Platform entity tests
 ├── test_init.py                   # Integration setup/teardown tests
 └── test_eci_zone_detection.py     # ECi zone detection tests
@@ -24,8 +24,7 @@ tests/
 
 ### `conftest.py` 
 **Shared fixtures and configuration:**
-- `mock_config_entry` - Mock configuration data
-- `mock_esx_config_entry` - ESX-specific config
+- `mock_config_entry` - ECi mock configuration data
 - `mock_eci_config_entry` - ECi-specific config  
 - `mock_panel_status` - Mock panel status data
 - `mock_arrowhead_client` - Mock client with async methods
@@ -58,8 +57,8 @@ tests/
 - Callback management
 
 ### `test_client.py`
-**ArrowheadClient testing (80+ tests):**
-- Client initialization for ESX/ECi
+**ArrowheadECiClient testing:**
+- ECi client initialization and defaults
 - Connection establishment and authentication
 - Command sending and response handling
 - Message processing and parsing
@@ -132,8 +131,8 @@ pytest tests/ --cov=custom_components.arrowhead_alarm --cov-report=html
 # Run specific test file
 pytest tests/test_config_flow.py -v
 
-# Run specific test class
-pytest tests/test_coordinator.py::TestArrowheadDataUpdateCoordinator -v
+# Run the ECi coordinator tests
+pytest tests/test_coordinator.py -v
 
 # Run with markers
 pytest tests/ -m "not hardware"  # Skip hardware tests

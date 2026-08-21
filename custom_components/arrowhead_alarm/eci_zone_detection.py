@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import re
+from copy import deepcopy
 from typing import Dict, List, Set, Optional, Tuple
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,6 +64,14 @@ class ECiZoneManager:
             # Calculate final configuration
             config["max_zone"] = max(config["detected_zones"]) if config["detected_zones"] else 16
             config["total_zones"] = len(config["detected_zones"])
+
+            if not config["detected_zones"] and config["detection_method"] == "unknown":
+                config["detected_zones"] = set(range(1, 17))
+                config["active_areas"] = {1}
+                config["zones_in_areas"] = {1: set(range(1, 17))}
+                config["max_zone"] = 16
+                config["total_zones"] = 16
+                config["detection_method"] = "fallback"
             
             # Detect expanders based on zone ranges
             config["expanders_detected"] = self._detect_expanders(config["detected_zones"])
@@ -183,7 +192,10 @@ class ECiZoneManager:
             _LOGGER.info("=== PARSING STATUS FOR ZONE DETECTION ===")
             
             # Send STATUS command and collect zone messages
-            await self.client._send_command("STATUS")
+            try:
+                await self.client._send_command("STATUS")
+            except Exception as err:
+                _LOGGER.warning("STATUS query failed; using cached client status: %s", err)
             
             # Wait a bit for all status messages to arrive
             await asyncio.sleep(3)
@@ -237,7 +249,7 @@ class ECiZoneManager:
 
     def _detect_expanders(self, zones: Set[int]) -> List[Dict[str, any]]:
         """Detect expanders based on zone ranges."""
-        from .const import ZONE_RANGES, PANEL_TYPE_ECI
+        from .const import ZONE_RANGES
         
         expanders = []
         
@@ -245,7 +257,7 @@ class ECiZoneManager:
             return expanders
             
         max_zone = max(zones)
-        zone_ranges = ZONE_RANGES[PANEL_TYPE_ECI]
+        zone_ranges = ZONE_RANGES
         
         _LOGGER.info("=== DETECTING EXPANDERS ===")
         _LOGGER.info("Max zone: %d, checking ranges: %s", max_zone, list(zone_ranges.keys()))
@@ -285,6 +297,7 @@ class ECiConfigurationManager:
                            areas: Optional[List[int]] = None,
                            auto_detect: bool = True):
         """Set user configuration preferences."""
+        self.detection_cache = None
         self.auto_detect = auto_detect
         self.user_max_zones = max_zones
         self.user_areas = set(areas) if areas else None
@@ -294,6 +307,9 @@ class ECiConfigurationManager:
 
     async def get_panel_configuration(self, client) -> Dict[str, any]:
         """Get final panel configuration based on detection and user preferences."""
+
+        if self.detection_cache is not None:
+            return deepcopy(self.detection_cache)
         
         if self.auto_detect:
             # Auto-detect configuration
@@ -311,7 +327,7 @@ class ECiConfigurationManager:
         final_config = self._validate_configuration(final_config)
         
         # Cache for future use
-        self.detection_cache = final_config
+        self.detection_cache = deepcopy(final_config)
         
         return final_config
 

@@ -9,12 +9,10 @@ from homeassistant.core import HomeAssistant
 from custom_components.arrowhead_alarm.const import (
     DOMAIN,
     CONF_USER_PIN,
-    CONF_PANEL_TYPE,
-    PANEL_TYPE_ESX,
-    PANEL_TYPE_ECI,
     DEFAULT_USER_PIN,
     DEFAULT_USERNAME,
     DEFAULT_PASSWORD,
+    PANEL_CONFIG,
 )
 
 
@@ -27,21 +25,9 @@ def mock_config_entry():
         CONF_USER_PIN: DEFAULT_USER_PIN,
         "username": DEFAULT_USERNAME,
         "password": DEFAULT_PASSWORD,
-        CONF_PANEL_TYPE: PANEL_TYPE_ESX,
-        "max_outputs": 4,
-    }
-
-
-@pytest.fixture
-def mock_esx_config_entry():
-    """Return a mock ESX config entry."""
-    return {
-        CONF_HOST: "192.168.1.100",
-        CONF_PORT: 9000,
-        CONF_USER_PIN: DEFAULT_USER_PIN,
-        "username": DEFAULT_USERNAME,
-        "password": DEFAULT_PASSWORD,
-        CONF_PANEL_TYPE: PANEL_TYPE_ESX,
+        "max_zones": 32,
+        "areas": [1, 2],
+        "auto_detect_zones": True,
         "max_outputs": 4,
     }
 
@@ -55,7 +41,6 @@ def mock_eci_config_entry():
         CONF_USER_PIN: DEFAULT_USER_PIN,
         "username": DEFAULT_USERNAME,
         "password": DEFAULT_PASSWORD,
-        CONF_PANEL_TYPE: PANEL_TYPE_ECI,
         "max_zones": 32,
         "areas": [1, 2],
         "auto_detect_zones": True,
@@ -73,8 +58,8 @@ def mock_panel_status():
         "ready_to_arm": True,
         "alarm": False,
         "status_message": "System Ready",
-        "panel_type": PANEL_TYPE_ESX,
-        "panel_name": "ESX Elite-SX",
+        "panel_type": "eci",
+        "panel_name": "ECi Series",
         "connection_state": "connected",
         "zones": {1: False, 2: False, 3: True, 4: False},
         "zone_alarms": {1: False, 2: False, 3: False, 4: False},
@@ -94,11 +79,11 @@ def mock_panel_status():
 
 @pytest.fixture
 def mock_arrowhead_client():
-    """Return a mock ArrowheadClient."""
+    """Return a mock ECi client."""
     client = MagicMock()
     client.host = "192.168.1.100"
     client.port = 9000
-    client.panel_type = PANEL_TYPE_ESX
+    client.panel_model = "ECi Series"
     client.is_connected = True
     client.connection_state = "connected"
     
@@ -120,7 +105,7 @@ def mock_arrowhead_client():
 
 @pytest.fixture
 def mock_coordinator(mock_arrowhead_client, mock_panel_status):
-    """Return a mock ArrowheadDataUpdateCoordinator."""
+    """Return a mock ECi data update coordinator."""
     coordinator = MagicMock()
     coordinator.client = mock_arrowhead_client
     coordinator.data = mock_panel_status
@@ -149,22 +134,20 @@ def mock_config_entry_obj(mock_config_entry):
     entry.domain = DOMAIN
     entry.data = mock_config_entry
     entry.options = {}
-    entry.title = "Arrowhead ESX Elite-SX"
-    entry.unique_id = f"arrowhead_{PANEL_TYPE_ESX}_192.168.1.100"
+    entry.title = "Arrowhead ECi Series"
+    entry.unique_id = "arrowhead_eci_192.168.1.100"
     return entry
 
 
 @pytest.fixture
 def mock_hass_data(mock_coordinator, mock_arrowhead_client):
     """Return mock hass.data structure."""
-    from custom_components.arrowhead_alarm.const import PANEL_CONFIGS
-    
     return {
         DOMAIN: {
             "test_entry_id": {
                 "coordinator": mock_coordinator,
                 "client": mock_arrowhead_client,
-                "panel_config": PANEL_CONFIGS[PANEL_TYPE_ESX],
+                "panel_config": PANEL_CONFIG,
             }
         }
     }
@@ -185,6 +168,12 @@ async def mock_hass(mock_hass_data):
     hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
     
     return hass
+
+
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations):
+    """Enable the custom integration for Home Assistant-backed tests."""
+    yield
 
 
 @pytest.fixture
@@ -237,12 +226,6 @@ def panel_responses():
         "error": "ERROR",
         "timeout": None,
     }
-
-
-@pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations):
-    """Enable custom integrations for all tests."""
-    yield
 
 
 class MockConfigEntry:
