@@ -932,10 +932,6 @@ class ArrowheadAlarmOptionsFlowHandler(config_entries.OptionsFlow):
                     default=self.config_entry.options.get("timeout", 10)
                 ): vol.All(vol.Coerce(int), vol.Range(min=5, max=60)),
                 vol.Optional(
-                    "enable_debug_logging",
-                    default=self.config_entry.options.get("enable_debug_logging", False)
-                ): bool,
-                vol.Optional(
                     CONF_AUTO_DETECT_ZONES,
                     default=current_auto_detect
                 ): bool,
