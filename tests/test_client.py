@@ -24,6 +24,19 @@ def test_client_initializes_with_eci_defaults(client):
     assert client.configured_areas == [1]
 
 
+@pytest.mark.asyncio
+async def test_raw_transmit_logging_uses_debug_level(client, caplog):
+    client.writer = MagicMock()
+    client.writer.is_closing.return_value = False
+    client.writer.drain = AsyncMock()
+
+    with caplog.at_level("DEBUG", logger="custom_components.arrowhead_alarm.arrowhead_client"):
+        await client._send_raw_safe("STATUS\n")
+
+    assert "RAW TX: 'STATUS'" in caplog.text
+    assert all(record.levelname == "DEBUG" for record in caplog.records)
+
+
 def test_set_configured_areas_updates_status(client):
     client.set_configured_areas([3, 1, 2])
 

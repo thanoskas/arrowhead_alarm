@@ -619,6 +619,11 @@ automation:
 
 ### Debug Logging
 
+The integration follows Home Assistant's standard logger configuration. There is
+no integration-specific debug toggle; enable debug logging for the integration
+when troubleshooting. Protocol traffic is logged at debug level and will not be
+included in normal logs.
+
 ```yaml
 # configuration.yaml
 logger:

@@ -75,7 +75,6 @@
         "data": {
           "scan_interval": "Update interval (seconds)",
           "timeout": "Communication timeout (seconds)",
-          "enable_debug_logging": "Enable debug logging",
           "auto_detect_zones": "Auto-detect zones",
           "max_zones": "Maximum zones to monitor",
           "areas": "Active areas (manual, required)",
@@ -85,7 +84,6 @@
         "data_description": {
           "scan_interval": "How often to poll the ECi panel for status updates (10-300 seconds)",
           "timeout": "Maximum time to wait for panel responses (5-60 seconds)",
-          "enable_debug_logging": "Enable detailed logging for troubleshooting issues",
           "auto_detect_zones": "Automatically detect zones from ECi panel configuration using status parsing",
           "max_zones": "Maximum zone number to monitor (1-248 for ECi panels)",
           "areas": "Active areas as comma-separated numbers (1-32 for ECi panels) - REQUIRED MANUAL INPUT",

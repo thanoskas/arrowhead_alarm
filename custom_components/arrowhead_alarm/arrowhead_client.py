@@ -61,14 +61,13 @@ class ArrowheadECiClient:
     """ECi client with correct single area detection."""
 
     def __init__(self, host: str, port: int, user_pin: str, username: str = "",
-                 password: str = "", debug_raw_comms: bool = True):
+                 password: str = ""):
         """Initialize the ECi client."""
         self.host = host
         self.port = port
         self.user_pin = user_pin
         self.username = username
         self.password = password
-        self.debug_raw_comms = debug_raw_comms
         
         # Firmware and protocol information
         self.firmware_version = "Unknown"
@@ -420,8 +419,7 @@ class ArrowheadECiClient:
                 raise ConnectionError("No active connection")
             
             try:
-                if self.debug_raw_comms:
-                    _LOGGER.info("📤 RAW TX: %r", data.strip())
+                _LOGGER.debug("RAW TX: %r", data.strip())
                 
                 self.writer.write(data.encode())
                 await self.writer.drain()
@@ -434,17 +432,15 @@ class ArrowheadECiClient:
         try:
             response = await asyncio.wait_for(self._response_queue.get(), timeout=10.0)
             
-            if self.debug_raw_comms and response:
-                _LOGGER.info("📥 RAW RX: %r", response)
+            if response:
+                _LOGGER.debug("RAW RX: %r", response)
             
             return response
         except asyncio.TimeoutError:
-            if self.debug_raw_comms:
-                _LOGGER.warning("⏱️ Response timeout (10s)")
+            _LOGGER.warning("Response timeout (10s)")
             return None
         except Exception as err:
-            if self.debug_raw_comms:
-                _LOGGER.error("❌ Response error: %s", err)
+            _LOGGER.error("Response error: %s", err)
             return None
 
     # Prefixes of unsolicited event messages (longest first so e.g. ZBYR
@@ -484,8 +480,7 @@ class ArrowheadECiClient:
         """Send command safely with debug logging."""
         try:
             if not self.is_connected and not self.writer:
-                if self.debug_raw_comms:
-                    _LOGGER.error("❌ Cannot send '%s': not connected", command)
+                _LOGGER.error("Cannot send '%s': not connected", command)
                 return None
 
             await self._send_raw_safe(f"{command}\n")
@@ -502,28 +497,24 @@ class ArrowheadECiClient:
                         raise asyncio.TimeoutError
                     response = await asyncio.wait_for(self._response_queue.get(), timeout=remaining)
 
-                    if self.debug_raw_comms and response:
-                        _LOGGER.info("📥 RAW RX: %r", response)
+                    if response:
+                        _LOGGER.debug("RAW RX: %r", response)
 
                     if response and self._is_event_message(response):
-                        if self.debug_raw_comms:
-                            _LOGGER.debug("↪️ Skipping event %r while waiting for '%s' reply", response, command)
+                        _LOGGER.debug("Skipping event %r while waiting for '%s' reply", response, command)
                         continue
 
-                    if self.debug_raw_comms:
-                        if response:
-                            _LOGGER.info("✅ Command '%s' → Response: %r", command, response)
-                        else:
-                            _LOGGER.warning("⚠️ Command '%s' → No response", command)
+                    if response:
+                        _LOGGER.debug("Command '%s' response: %r", command, response)
+                    else:
+                        _LOGGER.warning("Command '%s' returned no response", command)
 
                     return response
         except asyncio.TimeoutError:
-            if self.debug_raw_comms:
-                _LOGGER.warning("⏱️ Command '%s' timeout (%ss)", command, timeout)
+            _LOGGER.warning("Command '%s' timeout (%ss)", command, timeout)
             return None
         except Exception as err:
-            if self.debug_raw_comms:
-                _LOGGER.error("❌ Command '%s' error: %s", command, err)
+            _LOGGER.error("Command '%s' error: %s", command, err)
             return None
         return None
 
@@ -539,7 +530,7 @@ class ArrowheadECiClient:
                 except asyncio.QueueEmpty:
                     break
             
-            if cleared > 0 and self.debug_raw_comms:
+            if cleared > 0:
                 _LOGGER.debug("🗑️ Cleared %d queued responses", cleared)
             
             # Wait longer for any in-flight messages to arrive
@@ -554,7 +545,7 @@ class ArrowheadECiClient:
                 except asyncio.QueueEmpty:
                     break
             
-            if cleared2 > 0 and self.debug_raw_comms:
+            if cleared2 > 0:
                 _LOGGER.debug("🗑️ Cleared %d more responses after wait", cleared2)
                 
         except Exception:
@@ -1299,8 +1290,7 @@ class ArrowheadECiClient:
                     self._status.setdefault("area_exit_delays", {}).pop(area_num, None)
                     self._status["arming"] = bool(self._status["area_exit_delays"])
                     self._status["stay_mode"] = False
-                    if self.debug_raw_comms:
-                        _LOGGER.info("🔒 Area %d armed (away)", area_num)
+                    _LOGGER.info("Area %d armed (away)", area_num)
                     return True
             except (ValueError, IndexError):
                 pass
@@ -1319,8 +1309,7 @@ class ArrowheadECiClient:
                     self._status.setdefault("area_exit_delays", {}).pop(area_num, None)
                     self._status["arming"] = bool(self._status["area_exit_delays"])
                     self._status["stay_mode"] = False
-                    if self.debug_raw_comms:
-                        _LOGGER.info("🔓 Area %d disarmed", area_num)
+                    _LOGGER.info("Area %d disarmed", area_num)
                     return True
             except (ValueError, IndexError):
                 pass
@@ -1338,8 +1327,7 @@ class ArrowheadECiClient:
                     self._status["stay_mode"] = True
                     self._status.setdefault("area_exit_delays", {}).pop(area_num, None)
                     self._status["arming"] = bool(self._status["area_exit_delays"])
-                    if self.debug_raw_comms:
-                        _LOGGER.info("🏠 Area %d armed (stay)", area_num)
+                    _LOGGER.info("Area %d armed (stay)", area_num)
                     return True
             except (ValueError, IndexError):
                 pass
@@ -1350,8 +1338,7 @@ class ArrowheadECiClient:
                 area_num = int(message[2:])
                 if 1 <= area_num <= 3:
                     self._status["ready_to_arm"] = True
-                    if self.debug_raw_comms:
-                        _LOGGER.debug("✓ Area %d ready to arm", area_num)
+                    _LOGGER.debug("Area %d ready to arm", area_num)
                     return True
             except ValueError:
                 pass
@@ -1362,8 +1349,7 @@ class ArrowheadECiClient:
                 area_num = int(message[2:])
                 if 1 <= area_num <= 3:
                     self._status["ready_to_arm"] = False
-                    if self.debug_raw_comms:
-                        _LOGGER.debug("⚠️ Area %d not ready", area_num)
+                    _LOGGER.debug("Area %d not ready", area_num)
                     return True
             except ValueError:
                 pass
@@ -1455,8 +1441,7 @@ class ArrowheadECiClient:
                     except ValueError:
                         delays[area_num] = 0
                     self._status["arming"] = True
-                    if self.debug_raw_comms:
-                        _LOGGER.info("⏳ Area %d exit delay started (%s)", area_num, message)
+                    _LOGGER.info("Area %d exit delay started (%s)", area_num, message)
                     return True
 
             # EA1, ES1, ZEDS1, AR1, etc. - recognized, no state change yet
@@ -1499,5 +1484,4 @@ class ArrowheadECiClient:
             "protocol_mode": self.protocol_mode,
             "single_area_mode": self.single_area_mode,
             "configured_areas": self.configured_areas,
-            "debug_raw_comms": self.debug_raw_comms,
         }
