@@ -199,6 +199,117 @@ def test_state_change_callback_is_registered(client):
 
 
 @pytest.mark.asyncio
+async def test_bypass_zone_returns_false_when_panel_state_does_not_confirm(client):
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {12: False}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Bypass")
+
+    result = await client.bypass_zone(12)
+
+    client._send_command_safe.assert_awaited_once_with(
+        "BYPASS 012", expect_response=True, timeout=8.0
+    )
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_bypass_zone_rejects_mismatched_command_acknowledgment(client):
+    """An 'OK UnBypass' reply must not be accepted as a BYPASS acknowledgment."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {12: True}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK UnBypass")
+
+    result = await client.bypass_zone(12)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_bypass_zone_accepts_differently_cased_acknowledgment(client):
+    """Firmware variants may differ in casing of the acknowledgment text."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {12: True}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK BYPASS")
+
+    result = await client.bypass_zone(12)
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_bypass_zone_accepts_documented_zone_number_suffix(client):
+    """Docs show 'OK Bypass 3', though some firmware (e.g. 10.3.58) omits it."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {3: True}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Bypass 3")
+
+    result = await client.bypass_zone(3)
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_unbypass_zone_rejects_mismatched_command_acknowledgment(client):
+    """An 'OK Bypass' reply must not be accepted as an UNBYPASS acknowledgment."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {12: False}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Bypass")
+
+    result = await client.unbypass_zone(12)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_keypad_bypass_event_updates_state_with_no_command_in_flight(client):
+    """A keypad-initiated bypass only ever sends ZBY1, with no command from us."""
+    callback = AsyncMock()
+    client.register_state_change_callback(callback)
+    client._status["zone_bypassed"] = {1: False}
+
+    await client._process_message("ZBY1")
+
+    assert client._status["zone_bypassed"][1] is True
+    callback.assert_awaited_once_with("zone", {"message": "ZBY1"})
+
+
+@pytest.mark.asyncio
+async def test_process_message_does_not_treat_command_ack_as_event(client):
+    callback = AsyncMock()
+    client.register_state_change_callback(callback)
+
+    await client._process_message("OK Bypass")
+
+    callback.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_console_bypass_command_gets_ack_then_confirms_via_event(client):
+    """BYPASS 001 gets 'OK Bypass' ack, followed by a separate ZBY1 event."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {1: False}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Bypass")
+
+    async def apply_confirmation_event(*args, **kwargs):
+        await client._process_message("ZBY1")
+
+    with patch(
+        "custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep",
+        side_effect=apply_confirmation_event,
+    ):
+        result = await client.bypass_zone(1)
+
+    assert result is True
+    assert client._status["zone_bypassed"][1] is True
+
+
+@pytest.mark.asyncio
 async def test_client_refresh_firmware_info_updates_runtime_state():
     client = ArrowheadECiClient("192.168.1.100", 9000, "1234")
     client._connection_state = client._connection_state.__class__.CONNECTED

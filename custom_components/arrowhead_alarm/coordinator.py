@@ -489,6 +489,11 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
         try:
             _LOGGER.debug(f"⚡ Real-time state change: {change_type} - {details.get('message', 'N/A')}")
             
+            message = details.get("message", "")
+            if change_type == "zone" and message.startswith(("ZBY", "ZBYR")):
+                self.async_set_updated_data(dict(self._client._status))
+                return
+
             # Trigger immediate refresh to update entities
             # This bypasses the polling interval and updates NOW
             await self.async_request_refresh()
@@ -759,7 +764,6 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
                 
                 # Request refresh to update UI
                 # No delay needed - client already waited for status update
-                await self.async_request_refresh()
             else:
                 _LOGGER.error("Failed to %s zone %s", action, zone_id)
                 

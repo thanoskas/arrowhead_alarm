@@ -60,6 +60,21 @@ async def test_alarm_commands_delegate_to_client(coordinator):
 
 
 @pytest.mark.asyncio
+async def test_bypass_state_event_updates_coordinator_without_status_refresh(coordinator):
+    coordinator.client._status = {
+        "connection_state": "connected",
+        "zone_bypassed": {1: True},
+    }
+    coordinator.async_set_updated_data = MagicMock()
+    coordinator.async_request_refresh = AsyncMock()
+
+    await coordinator._handle_client_state_change("zone", {"message": "ZBY1"})
+
+    coordinator.async_set_updated_data.assert_called_once_with(coordinator.client._status)
+    coordinator.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_shutdown_disconnects_client(coordinator):
     coordinator.client.disconnect = AsyncMock()
 
