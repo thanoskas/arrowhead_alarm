@@ -562,6 +562,12 @@ class ArrowheadECiClient:
 
     # ===== ARM/DISARM METHODS =====
 
+    def _area_armed_state(self, area: int) -> Optional[bool]:
+        """Return confirmed armed state for an area, or None if not tracked (areas > 3)."""
+        if not (1 <= area <= 3):
+            return None
+        return self._status.get(f"area_{chr(96 + area)}_armed")
+
     async def send_armarea_command(self, area: int) -> bool:
         """
         Arm away for specified area.
@@ -588,8 +594,9 @@ class ArrowheadECiClient:
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Arm" in response):
-                _LOGGER.info("✅ %s successful", command)
-                await asyncio.sleep(1.5)
+                # Arming completes only after the panel's exit delay elapses
+                # (EDA<area>-<seconds>); success here means accepted, not armed.
+                _LOGGER.info("✅ %s accepted", command)
                 return True
             else:
                 _LOGGER.error("❌ %s failed: %r", command, response)
@@ -625,8 +632,9 @@ class ArrowheadECiClient:
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Stay" in response):
-                _LOGGER.info("✅ %s successful", command)
-                await asyncio.sleep(1.5)
+                # Arming completes only after the panel's exit delay elapses
+                # (EDA/EDS<area>-<seconds>); success here means accepted, not armed.
+                _LOGGER.info("✅ %s accepted", command)
                 return True
             else:
                 _LOGGER.error("❌ %s failed: %r", command, response)
@@ -709,8 +717,11 @@ class ArrowheadECiClient:
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Disarm" in response):
-                _LOGGER.info("✅ DISARM successful (all areas)")
                 await asyncio.sleep(1.5)
+                if self._status.get("armed", False):
+                    _LOGGER.warning("DISARM acknowledged but status still shows armed")
+                    return False
+                _LOGGER.info("✅ DISARM successful (all areas)")
                 return True
             else:
                 _LOGGER.error("❌ DISARM failed: %r", response)
@@ -764,15 +775,20 @@ class ArrowheadECiClient:
                 
                 response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
                 
+                # Wait for status update
+                await asyncio.sleep(1.5)
+                
                 if response and ("OK" in response and "Disarm" in response):
-                    _LOGGER.info("✅ Area %d disarmed successfully", area)
-                    success = True
+                    confirmed = self._area_armed_state(area)
+                    if confirmed is False:
+                        _LOGGER.warning("Area %d disarm acknowledged but not confirmed armed=False", area)
+                        success = False
+                    else:
+                        _LOGGER.info("✅ Area %d disarmed successfully", area)
+                        success = True
                 else:
                     _LOGGER.error("❌ Area %d disarm failed: %r", area, response)
                     success = False
-                
-                # Wait for status update
-                await asyncio.sleep(1.5)
                 
             finally:
                 # Step 3: Always switch back to original mode
@@ -806,8 +822,9 @@ class ArrowheadECiClient:
             response = await self._send_command_safe("ARMAWAY", expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Arm" in response):
-                _LOGGER.info("✅ ARMAWAY successful (all areas)")
-                await asyncio.sleep(1.5)
+                # Confirmed real panel ack is "OK ArmAway"; armed state follows
+                # only after the exit delay (EDA1-30) elapses, so don't wait for it.
+                _LOGGER.info("✅ ARMAWAY accepted (all areas)")
                 return True
             else:
                 _LOGGER.error("❌ ARMAWAY failed: %r", response)
@@ -831,8 +848,9 @@ class ArrowheadECiClient:
             response = await self._send_command_safe("ARMSTAY", expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and ("Arm" in response or "Stay" in response)):
-                _LOGGER.info("✅ ARMSTAY successful (all areas)")
-                await asyncio.sleep(1.5)
+                # Armed state follows only after the exit delay (EDA/EDS1-30)
+                # elapses, so don't wait for it here.
+                _LOGGER.info("✅ ARMSTAY accepted (all areas)")
                 return True
             else:
                 _LOGGER.error("❌ ARMSTAY failed: %r", response)
@@ -1026,7 +1044,13 @@ class ArrowheadECiClient:
                 command = f"OUTPUTON {output_number}"
             
             response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
-            return response and ("OK" in response or "OutputOn" in response)
+            # Match the acknowledgment prefix; the exact suffix varies by firmware.
+            if not response or not response.upper().startswith("OK OUTPUTON"):
+                _LOGGER.warning("Output %d trigger command was not accepted: %s", output_number, response)
+                return False
+            await asyncio.sleep(1.0)
+            
+            return self._status.get("outputs", {}).get(output_number, False)
         except Exception:
             return False
 
@@ -1038,7 +1062,12 @@ class ArrowheadECiClient:
             
             command = f"OUTPUTON {output_number}"
             response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
-            return response and ("OK" in response or "OutputOn" in response)
+            if not response or not response.upper().startswith("OK OUTPUTON"):
+                _LOGGER.warning("Output %d on command was not accepted: %s", output_number, response)
+                return False
+            await asyncio.sleep(1.0)
+            
+            return self._status.get("outputs", {}).get(output_number, False)
         except Exception:
             return False
 
@@ -1050,7 +1079,13 @@ class ArrowheadECiClient:
             
             command = f"OUTPUTOFF {output_number}"
             response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
-            return response and ("OK" in response or "OutputOff" in response)
+            if not response or not response.upper().startswith("OK OUTPUTOFF"):
+                _LOGGER.warning("Output %d off command was not accepted: %s", output_number, response)
+                return False
+            await asyncio.sleep(1.0)
+            
+            is_still_on = self._status.get("outputs", {}).get(output_number, True)
+            return not is_still_on
         except Exception:
             return False
 

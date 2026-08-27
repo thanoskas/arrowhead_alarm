@@ -478,26 +478,19 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
     async def _handle_client_state_change(self, change_type: str, details: dict):
         """
         Handle real-time state changes from client.
-        
-        Called by client when unsolicited messages update state (zones, areas, bypasses).
-        Triggers immediate coordinator refresh to update HA entities.
-        
+
+        Called by client when an unsolicited message updates state (zones,
+        areas, outputs, bypasses, system). The client already applies the
+        parsed value to its status dict before notifying us, so we publish
+        that state directly rather than issuing a redundant STATUS poll.
+
         Args:
             change_type: Type of change (zone, area, bypass, output, system)
             details: Dictionary with change details
         """
         try:
             _LOGGER.debug(f"⚡ Real-time state change: {change_type} - {details.get('message', 'N/A')}")
-            
-            message = details.get("message", "")
-            if change_type == "zone" and message.startswith(("ZBY", "ZBYR")):
-                self.async_set_updated_data(dict(self._client._status))
-                return
-
-            # Trigger immediate refresh to update entities
-            # This bypasses the polling interval and updates NOW
-            await self.async_request_refresh()
-            
+            self.async_set_updated_data(dict(self._client._status))
         except Exception as err:
             _LOGGER.debug(f"Error handling state change: {err}")
 
@@ -822,9 +815,8 @@ class ArrowheadECiDataUpdateCoordinator(DataUpdateCoordinator):
                 except Exception as err:
                     _LOGGER.error("Error %s zone %d: %s", action, zone_id, err)
             
-            # Request refresh after all operations
-            await self.async_request_refresh()
-            
+            # Each zone's bypass/unbypass already confirmed and published its
+            # own state via the real-time event handler; no refresh needed here.
             overall_success = success_count == total_zones
             _LOGGER.info("Bulk %s completed: %d/%d zones successful", 
                         action, success_count, total_zones)
