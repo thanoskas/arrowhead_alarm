@@ -60,6 +60,38 @@ async def test_alarm_commands_delegate_to_client(coordinator):
 
 
 @pytest.mark.asyncio
+async def test_bypass_state_event_updates_coordinator_without_status_refresh(coordinator):
+    coordinator.client._status = {
+        "connection_state": "connected",
+        "zone_bypassed": {1: True},
+    }
+    coordinator.async_set_updated_data = MagicMock()
+    coordinator.async_request_refresh = AsyncMock()
+
+    await coordinator._handle_client_state_change("zone", {"message": "ZBY1"})
+
+    coordinator.async_set_updated_data.assert_called_once_with(coordinator.client._status)
+    coordinator.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_any_parsed_event_updates_coordinator_without_status_refresh(coordinator):
+    """Every real-time event already updated self._status; no poll is needed."""
+    coordinator.client._status = {
+        "connection_state": "connected",
+        "zones": {1: True},
+    }
+    coordinator.async_set_updated_data = MagicMock()
+    coordinator.async_request_refresh = AsyncMock()
+
+    await coordinator._handle_client_state_change("zone", {"message": "ZO1"})
+    await coordinator._handle_client_state_change("zone", {"message": "ZC1"})
+
+    assert coordinator.async_set_updated_data.call_count == 2
+    coordinator.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_shutdown_disconnects_client(coordinator):
     coordinator.client.disconnect = AsyncMock()
 

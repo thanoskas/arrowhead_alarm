@@ -562,6 +562,12 @@ class ArrowheadECiClient:
 
     # ===== ARM/DISARM METHODS =====
 
+    def _area_armed_state(self, area: int) -> Optional[bool]:
+        """Return confirmed armed state for an area, or None if not tracked (areas > 3)."""
+        if not (1 <= area <= 3):
+            return None
+        return self._status.get(f"area_{chr(96 + area)}_armed")
+
     async def send_armarea_command(self, area: int) -> bool:
         """
         Arm away for specified area.
@@ -588,8 +594,9 @@ class ArrowheadECiClient:
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Arm" in response):
-                _LOGGER.info("✅ %s successful", command)
-                await asyncio.sleep(1.5)
+                # Arming completes only after the panel's exit delay elapses
+                # (EDA<area>-<seconds>); success here means accepted, not armed.
+                _LOGGER.info("✅ %s accepted", command)
                 return True
             else:
                 _LOGGER.error("❌ %s failed: %r", command, response)
@@ -625,8 +632,9 @@ class ArrowheadECiClient:
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Stay" in response):
-                _LOGGER.info("✅ %s successful", command)
-                await asyncio.sleep(1.5)
+                # Arming completes only after the panel's exit delay elapses
+                # (EDA/EDS<area>-<seconds>); success here means accepted, not armed.
+                _LOGGER.info("✅ %s accepted", command)
                 return True
             else:
                 _LOGGER.error("❌ %s failed: %r", command, response)
@@ -709,8 +717,11 @@ class ArrowheadECiClient:
             response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Disarm" in response):
-                _LOGGER.info("✅ DISARM successful (all areas)")
                 await asyncio.sleep(1.5)
+                if self._status.get("armed", False):
+                    _LOGGER.warning("DISARM acknowledged but status still shows armed")
+                    return False
+                _LOGGER.info("✅ DISARM successful (all areas)")
                 return True
             else:
                 _LOGGER.error("❌ DISARM failed: %r", response)
@@ -764,15 +775,20 @@ class ArrowheadECiClient:
                 
                 response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
                 
+                # Wait for status update
+                await asyncio.sleep(1.5)
+                
                 if response and ("OK" in response and "Disarm" in response):
-                    _LOGGER.info("✅ Area %d disarmed successfully", area)
-                    success = True
+                    confirmed = self._area_armed_state(area)
+                    if confirmed is False:
+                        _LOGGER.warning("Area %d disarm acknowledged but not confirmed armed=False", area)
+                        success = False
+                    else:
+                        _LOGGER.info("✅ Area %d disarmed successfully", area)
+                        success = True
                 else:
                     _LOGGER.error("❌ Area %d disarm failed: %r", area, response)
                     success = False
-                
-                # Wait for status update
-                await asyncio.sleep(1.5)
                 
             finally:
                 # Step 3: Always switch back to original mode
@@ -806,8 +822,9 @@ class ArrowheadECiClient:
             response = await self._send_command_safe("ARMAWAY", expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and "Arm" in response):
-                _LOGGER.info("✅ ARMAWAY successful (all areas)")
-                await asyncio.sleep(1.5)
+                # Confirmed real panel ack is "OK ArmAway"; armed state follows
+                # only after the exit delay (EDA1-30) elapses, so don't wait for it.
+                _LOGGER.info("✅ ARMAWAY accepted (all areas)")
                 return True
             else:
                 _LOGGER.error("❌ ARMAWAY failed: %r", response)
@@ -831,8 +848,9 @@ class ArrowheadECiClient:
             response = await self._send_command_safe("ARMSTAY", expect_response=True, timeout=8.0)
             
             if response and ("OK" in response and ("Arm" in response or "Stay" in response)):
-                _LOGGER.info("✅ ARMSTAY successful (all areas)")
-                await asyncio.sleep(1.5)
+                # Armed state follows only after the exit delay (EDA/EDS1-30)
+                # elapses, so don't wait for it here.
+                _LOGGER.info("✅ ARMSTAY accepted (all areas)")
                 return True
             else:
                 _LOGGER.error("❌ ARMSTAY failed: %r", response)
@@ -874,79 +892,65 @@ class ArrowheadECiClient:
     async def bypass_zone(self, zone_number: int) -> bool:
         """
         Bypass a zone.
-        
-        Panel sends message SEQUENCE after bypass:
-        - ZBYR# (clear old bypass)
-        - ZO# (zone opens)
-        - NR# (area not ready)
-        - ZBY# (NEW bypass set) ✅
-        - RO# (area ready - bypass ignores unsealed zone)
-        
-        NOTE: Bypasses are CLEARED when areas are disarmed!
-        So bypass state only valid while areas are armed or disarmed.
+
+        The panel may acknowledge the command but the bypass state must still be
+        reflected in the status payload before we treat it as successful.
         """
         try:
             zone_str = f"{zone_number:03d}"
             command = f"BYPASS {zone_str}"
-            
-            # Clear queue before sending
+
             await self._clear_response_queue()
-            
-            # Send command (fire and forget - don't wait for specific response)
-            await self._send_command_safe(command, expect_response=False)
-            
-            # Wait for panel to send all status messages
+            response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
+            # Docs show "OK Bypass 3", but some firmware (e.g. 10.3.58) replies
+            # with just "OK Bypass"; match the prefix and ignore case/suffix.
+            if not response or not response.upper().startswith("OK BYPASS"):
+                _LOGGER.warning("Zone %d bypass command was not accepted: %s", zone_number, response)
+                return False
             await asyncio.sleep(2.0)
-            
-            # Check if zone is now bypassed in status
-            # Note: This might be False if area was disarmed after bypass!
+
             is_bypassed = self._status.get("zone_bypassed", {}).get(zone_number, False)
-            
             if is_bypassed:
-                _LOGGER.info(f"✅ Zone {zone_number} bypass confirmed")
-            else:
-                # Don't warn - bypass might have been cleared by disarm
-                _LOGGER.debug(f"Zone {zone_number} bypass command sent (state not updated - may have been cleared)")
-            
-            # Always return True - command was accepted by panel
-            return True
-                
+                _LOGGER.info("✅ Zone %d bypass confirmed", zone_number)
+                return True
+
+            _LOGGER.warning("Zone %d bypass command sent but status did not confirm bypass", zone_number)
+            return False
+
         except Exception as err:
-            _LOGGER.error(f"Exception bypassing zone {zone_number}: {err}")
+            _LOGGER.error("Exception bypassing zone %d: %s", zone_number, err)
             return False
 
     async def unbypass_zone(self, zone_number: int) -> bool:
         """
         Remove bypass from a zone.
-        
-        Panel sends message sequence, not simple "OK Unbypass".
+
+        Only report success when the panel status actually reflects that the zone
+        is no longer bypassed.
         """
         try:
             zone_str = f"{zone_number:03d}"
             command = f"UNBYPASS {zone_str}"
-            
-            # Clear queue before sending
+
             await self._clear_response_queue()
-            
-            # Send command (fire and forget)
-            await self._send_command_safe(command, expect_response=False)
-            
-            # Wait for panel to send status messages
+            response = await self._send_command_safe(command, expect_response=True, timeout=8.0)
+            # Docs show "OK UnBypass 3", but some firmware (e.g. 10.3.58) replies
+            # with just "OK UnBypass"; match the prefix and ignore case/suffix.
+            if not response or not response.upper().startswith("OK UNBYPASS"):
+                _LOGGER.warning("Zone %d unbypass command was not accepted: %s", zone_number, response)
+                return False
             await asyncio.sleep(2.0)
-            
-            # Check if bypass cleared
+
             is_bypassed = self._status.get("zone_bypassed", {}).get(zone_number, False)
-            
             if not is_bypassed:
-                _LOGGER.info(f"✅ Zone {zone_number} unbypass confirmed")
-            else:
-                _LOGGER.debug(f"Zone {zone_number} unbypass sent (state still shows bypassed)")
-            
-            # Always return True
-            return True
-                
+                _LOGGER.info("✅ Zone %d unbypass confirmed", zone_number)
+                return True
+
+            _LOGGER.warning("Zone %d unbypass command sent but status still shows bypassed", zone_number)
+            return False
+
         except Exception as err:
-            _LOGGER.error(f"Exception unbypassing zone {zone_number}: {err}")
+            _LOGGER.error("Exception unbypassing zone %d: %s", zone_number, err)
             return False
 
     async def query_unsealed_zones(self) -> List[int]:
@@ -1040,7 +1044,13 @@ class ArrowheadECiClient:
                 command = f"OUTPUTON {output_number}"
             
             response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
-            return response and ("OK" in response or "OutputOn" in response)
+            # Match the acknowledgment prefix; the exact suffix varies by firmware.
+            if not response or not response.upper().startswith("OK OUTPUTON"):
+                _LOGGER.warning("Output %d trigger command was not accepted: %s", output_number, response)
+                return False
+            await asyncio.sleep(1.0)
+            
+            return self._status.get("outputs", {}).get(output_number, False)
         except Exception:
             return False
 
@@ -1052,7 +1062,12 @@ class ArrowheadECiClient:
             
             command = f"OUTPUTON {output_number}"
             response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
-            return response and ("OK" in response or "OutputOn" in response)
+            if not response or not response.upper().startswith("OK OUTPUTON"):
+                _LOGGER.warning("Output %d on command was not accepted: %s", output_number, response)
+                return False
+            await asyncio.sleep(1.0)
+            
+            return self._status.get("outputs", {}).get(output_number, False)
         except Exception:
             return False
 
@@ -1064,7 +1079,13 @@ class ArrowheadECiClient:
             
             command = f"OUTPUTOFF {output_number}"
             response = await self._send_command_safe(command, expect_response=True, timeout=5.0)
-            return response and ("OK" in response or "OutputOff" in response)
+            if not response or not response.upper().startswith("OK OUTPUTOFF"):
+                _LOGGER.warning("Output %d off command was not accepted: %s", output_number, response)
+                return False
+            await asyncio.sleep(1.0)
+            
+            is_still_on = self._status.get("outputs", {}).get(output_number, True)
+            return not is_still_on
         except Exception:
             return False
 
@@ -1418,16 +1439,16 @@ class ArrowheadECiClient:
     async def _process_system_message(self, message: str) -> bool:
         """Process system messages."""
         system_messages = {
-            "RO": ("ready_to_arm", True),
-            "NR": ("ready_to_arm", False),
-            "MF": ("mains_ok", False),
-            "MR": ("mains_ok", True),
-            "BF": ("battery_ok", False),
-            "BR": ("battery_ok", True),
-            "TA": ("tamper_alarm", True),
-            "TR": ("tamper_alarm", False),
-            "LF": ("line_ok", False),
-            "LR": ("line_ok", True),
+            "RO": ("ready_to_arm", True),   # READY ON
+            "NR": ("ready_to_arm", False),  # NOT READY
+            "MF": ("mains_ok", False),      # MAINS FAIL
+            "MR": ("mains_ok", True),       # MAINS RESTORED
+            "BF": ("battery_ok", False),    # BATTERY FAIL
+            "BR": ("battery_ok", True),     # BATTERY RESTORED
+            "TA": ("tamper_alarm", True),   # TAMPER ALARM
+            "TR": ("tamper_alarm", False),  # TAMPER RESTORED
+            "LF": ("line_ok", False),       # LINE FAIL
+            "LR": ("line_ok", True),        # LINE RESTORED
         }
         
         if message in system_messages:
@@ -1435,9 +1456,8 @@ class ArrowheadECiClient:
             self._status[key] = value
             return True
         
-        if message.startswith("OK"):
-            return True
-        
+        # Command acknowledgments (e.g. "OK Bypass") are not state changes;
+        # the actual state comes from a separate unsolicited event message.
         return False
 
     async def _process_mode4_message(self, message: str) -> bool:

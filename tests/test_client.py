@@ -199,6 +199,342 @@ def test_state_change_callback_is_registered(client):
 
 
 @pytest.mark.asyncio
+async def test_bypass_zone_returns_false_when_panel_state_does_not_confirm(client):
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {12: False}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Bypass")
+
+    result = await client.bypass_zone(12)
+
+    client._send_command_safe.assert_awaited_once_with(
+        "BYPASS 012", expect_response=True, timeout=8.0
+    )
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_bypass_zone_rejects_mismatched_command_acknowledgment(client):
+    """An 'OK UnBypass' reply must not be accepted as a BYPASS acknowledgment."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {12: True}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK UnBypass")
+
+    result = await client.bypass_zone(12)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_bypass_zone_accepts_differently_cased_acknowledgment(client):
+    """Firmware variants may differ in casing of the acknowledgment text."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {12: True}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK BYPASS")
+
+    result = await client.bypass_zone(12)
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_bypass_zone_accepts_documented_zone_number_suffix(client):
+    """Docs show 'OK Bypass 3', though some firmware (e.g. 10.3.58) omits it."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {3: True}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Bypass 3")
+
+    result = await client.bypass_zone(3)
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_unbypass_zone_rejects_mismatched_command_acknowledgment(client):
+    """An 'OK Bypass' reply must not be accepted as an UNBYPASS acknowledgment."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {12: False}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Bypass")
+
+    result = await client.unbypass_zone(12)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_keypad_bypass_event_updates_state_with_no_command_in_flight(client):
+    """A keypad-initiated bypass only ever sends ZBY1, with no command from us."""
+    callback = AsyncMock()
+    client.register_state_change_callback(callback)
+    client._status["zone_bypassed"] = {1: False}
+
+    await client._process_message("ZBY1")
+
+    assert client._status["zone_bypassed"][1] is True
+    callback.assert_awaited_once_with("zone", {"message": "ZBY1"})
+
+
+@pytest.mark.asyncio
+async def test_output_auto_off_event_updates_state_with_no_command_in_flight(client):
+    """Real capture: an output's own reset timer sends OR3 with no OUTPUTOFF from us."""
+    callback = AsyncMock()
+    client.register_state_change_callback(callback)
+    client._status["outputs"] = {3: True}
+
+    await client._process_message("OR3")
+
+    assert client._status["outputs"][3] is False
+    callback.assert_awaited_once_with("output", {"message": "OR3"})
+
+
+@pytest.mark.asyncio
+async def test_process_message_does_not_treat_command_ack_as_event(client):
+    callback = AsyncMock()
+    client.register_state_change_callback(callback)
+
+    await client._process_message("OK Bypass")
+
+    callback.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_console_bypass_command_gets_ack_then_confirms_via_event(client):
+    """BYPASS 001 gets 'OK Bypass' ack, followed by a separate ZBY1 event."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._status["zone_bypassed"] = {1: False}
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Bypass")
+
+    async def apply_confirmation_event(*args, **kwargs):
+        await client._process_message("ZBY1")
+
+    with patch(
+        "custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep",
+        side_effect=apply_confirmation_event,
+    ):
+        result = await client.bypass_zone(1)
+
+    assert result is True
+    assert client._status["zone_bypassed"][1] is True
+
+
+@pytest.mark.asyncio
+async def test_trigger_output_gets_ack_then_confirms_via_event(client):
+    """Real capture: OUTPUTON 3 -> 'OK OutputOn' ack, then a separate OO3 event."""
+    client._status["outputs"] = {3: False}
+    client._send_command_safe = AsyncMock(return_value="OK OutputOn")
+
+    async def apply_confirmation_event(*args, **kwargs):
+        await client._process_message("OO3")
+
+    with patch(
+        "custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep",
+        side_effect=apply_confirmation_event,
+    ):
+        result = await client.trigger_output(3)
+
+    assert result is True
+    assert client._status["outputs"][3] is True
+
+
+@pytest.mark.asyncio
+async def test_turn_output_off_gets_ack_then_confirms_via_event(client):
+    """Real capture: OUTPUTOFF 3 -> 'OK OutputOff' ack, then a separate OR3 event."""
+    client._status["outputs"] = {3: True}
+    client._send_command_safe = AsyncMock(return_value="OK OutputOff")
+
+    async def apply_confirmation_event(*args, **kwargs):
+        await client._process_message("OR3")
+
+    with patch(
+        "custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep",
+        side_effect=apply_confirmation_event,
+    ):
+        result = await client.turn_output_off(3)
+
+    assert result is True
+    assert client._status["outputs"][3] is False
+
+
+@pytest.mark.asyncio
+async def test_main_panel_armaway_returns_true_on_acknowledgment(client):
+    """Arming completes only after the panel's exit delay elapses (real
+    capture: EDA1-30 then A1 ~30s later), so success means accepted."""
+    client._connection_state = ConnectionState.CONNECTED
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK ArmAway")
+    client._status["armed"] = False
+
+    result = await client.send_main_panel_armaway()
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_main_panel_armaway_returns_false_when_not_acknowledged(client):
+    client._connection_state = ConnectionState.CONNECTED
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="ERR 1")
+
+    result = await client.send_main_panel_armaway()
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_main_panel_armstay_returns_true_on_acknowledgment(client):
+    client._connection_state = ConnectionState.CONNECTED
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK ArmStay")
+    client._status["armed"] = False
+
+    result = await client.send_main_panel_armstay()
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_armstay_exit_delay_then_confirmed_stay_event(client):
+    """Real capture: OK ArmStay, then ES1/EDS1-30, then S1 ~30s later."""
+    callback = AsyncMock()
+    client.register_state_change_callback(callback)
+
+    await client._process_message("ES1")
+    await client._process_message("EDS1-30")
+
+    assert client._status["area_exit_delays"][1] == 30
+    assert client._status["arming"] is True
+    assert client._status.get("area_a_armed") is not True
+
+    await client._process_message("S1")
+
+    assert client._status["area_a_armed"] is True
+    assert client._status["armed"] is True
+    assert client._status["stay_mode"] is True
+    assert client._status["area_exit_delays"] == {}
+    assert client._status["arming"] is False
+
+
+@pytest.mark.asyncio
+async def test_armarea_exit_delay_then_confirmed_arm_event(client):
+    """Real capture: OK ArmArea, then EA1/EDA1-30, then A1 ~30s later."""
+    await client._process_message("EA1")
+    await client._process_message("EDA1-30")
+
+    assert client._status["area_exit_delays"][1] == 30
+    assert client._status["arming"] is True
+    assert client._status.get("area_a_armed") is not True
+
+    await client._process_message("A1")
+
+    assert client._status["area_a_armed"] is True
+    assert client._status["armed"] is True
+    assert client._status["stay_mode"] is False
+    assert client._status["area_exit_delays"] == {}
+    assert client._status["arming"] is False
+
+
+@pytest.mark.asyncio
+async def test_disarm_all_areas_returns_false_when_still_armed(client):
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Disarm")
+    client._status["armed"] = True
+
+    with patch("custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep", AsyncMock()):
+        result = await client.disarm_all_areas()
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_disarm_all_areas_returns_true_when_confirmed(client):
+    """Real capture: DISARM's D1-U1 confirmation arrives immediately, no exit delay."""
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Disarm")
+    client._status["armed"] = False
+
+    with patch("custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep", AsyncMock()):
+        result = await client.disarm_all_areas()
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_send_armarea_command_returns_true_on_acknowledgment(client):
+    """Area-specific arming has the same exit-delay behavior as ARMAWAY."""
+    client._connection_state = ConnectionState.CONNECTED
+    client.mode_4_features_active = True
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="OK Arm")
+    client._status["area_a_armed"] = False
+
+    result = await client.send_armarea_command(1)
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_send_armarea_command_returns_false_when_not_acknowledged(client):
+    client._connection_state = ConnectionState.CONNECTED
+    client.mode_4_features_active = True
+    client._clear_response_queue = AsyncMock()
+    client._send_command_safe = AsyncMock(return_value="ERR 1")
+
+    result = await client.send_armarea_command(1)
+
+    assert result is False
+
+
+
+@pytest.mark.asyncio
+async def test_trigger_output_returns_false_when_not_confirmed(client):
+    client._send_command_safe = AsyncMock(return_value="OK OutputOn")
+    client._status["outputs"] = {3: False}
+
+    with patch("custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep", AsyncMock()):
+        result = await client.trigger_output(3)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_trigger_output_returns_true_when_confirmed(client):
+    client._send_command_safe = AsyncMock(return_value="OK OutputOn")
+    client._status["outputs"] = {3: True}
+
+    with patch("custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep", AsyncMock()):
+        result = await client.trigger_output(3)
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_turn_output_off_returns_false_when_still_on(client):
+    client._send_command_safe = AsyncMock(return_value="OK OutputOff")
+    client._status["outputs"] = {3: True}
+
+    with patch("custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep", AsyncMock()):
+        result = await client.turn_output_off(3)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_turn_output_off_returns_true_when_confirmed(client):
+    client._send_command_safe = AsyncMock(return_value="OK OutputOff")
+    client._status["outputs"] = {3: False}
+
+    with patch("custom_components.arrowhead_alarm.arrowhead_client.asyncio.sleep", AsyncMock()):
+        result = await client.turn_output_off(3)
+
+    assert result is True
+
+
+@pytest.mark.asyncio
 async def test_client_refresh_firmware_info_updates_runtime_state():
     client = ArrowheadECiClient("192.168.1.100", 9000, "1234")
     client._connection_state = client._connection_state.__class__.CONNECTED
